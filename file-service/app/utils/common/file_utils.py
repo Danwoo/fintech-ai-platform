@@ -1,0 +1,148 @@
+"""
+파일 처리 유틸리티
+- 파일 메타데이터 생성
+- 이미지 변환
+"""
+
+import io
+import uuid
+from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+from PIL import Image
+
+# 업로드 차단할 위험한 파일 확장자
+DANGEROUS_EXTENSIONS = {".exe", ".bat", ".cmd", ".com", ".pif", ".scr", ".vbs", ".js", ".jar", ".sh", ".ps1"}
+
+
+def strip_extension(file_nm: str) -> str:
+    """파일명에서 확장자를 제거 (context_label 등에 활용)"""
+    if not file_nm:
+        return ""
+    if "." in file_nm:
+        return file_nm.rsplit(".", 1)[0]
+    return file_nm
+
+
+class FileMetadataUtils:
+    """파일 메타데이터 생성 유틸리티"""
+
+    # 이미지 확장자 목록
+    IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg"}
+
+    # MIME 타입 매핑
+    MEDIA_TYPES = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".gif": "image/gif",
+        ".bmp": "image/bmp",
+        ".webp": "image/webp",
+        ".svg": "image/svg+xml",
+    }
+
+    @staticmethod
+    def generate_file_id() -> str:
+        """파일 ID (UUID 기반) 자동 생성"""
+        return str(uuid.uuid4()).replace("-", "")[:20]
+
+    @staticmethod
+    def generate_uuid() -> str:
+        """저장 파일명용 UUID 생성"""
+        return str(uuid.uuid4())
+
+    @staticmethod
+    def get_upload_path(base_path: str) -> str:
+        """
+        SFTP 업로드 경로 (KST 기준 날짜별 디렉토리)
+
+        Args:
+            base_path: SFTP 기본 경로
+
+        Returns:
+            str: {base_path}/YYYYMMDD/HH/MM
+        """
+        now_utc = datetime.now().replace(tzinfo=ZoneInfo("UTC"))
+        now_kst = now_utc.astimezone(ZoneInfo("Asia/Seoul"))
+        return f"{base_path}/{now_kst.year:04d}{now_kst.month:02d}{now_kst.day:02d}/{now_kst.hour:02d}/{now_kst.minute:02d}"
+
+    @staticmethod
+    def get_file_type(filename: str) -> str:
+        """
+        파일 확장자 기반으로 IMAGE / DOCUMENT 구분
+
+        Args:
+            filename: 파일명
+
+        Returns:
+            str: "IMAGE" 또는 "DOCUMENT"
+        """
+        ext = Path(filename).suffix.lower()
+        return "IMAGE" if ext in FileMetadataUtils.IMAGE_EXTENSIONS else "DOCUMENT"
+
+    @staticmethod
+    def get_media_type(filename: str) -> str:
+        """
+        MIME 타입 결정
+
+        Args:
+            filename: 파일명
+
+        Returns:
+            str: MIME 타입 (기본값: "application/octet-stream")
+        """
+        ext = Path(filename).suffix.lower()
+        return FileMetadataUtils.MEDIA_TYPES.get(ext, "application/octet-stream")
+
+
+class ImageTransformer:
+    """이미지 변환 유틸리티 (크롭, 리사이즈, 포맷 변환)"""
+
+    @staticmethod
+    def transform(content: bytes, filename: str, size: int = None, crop: dict = None) -> bytes:
+        """
+        이미지 크롭 → 리사이즈 → 포맷 변환
+
+        Args:
+            content: 원본 이미지 bytes
+            filename: 원본 파일명 (확장자 추출용)
+            size: 최대 크기 (thumbnail, 비율 유지)
+            crop: {"x1", "y1", "x2", "y2"} 크롭 좌표
+
+        Returns:
+            bytes: 변환된 이미지 bytes
+        """
+        im = Image.open(io.BytesIO(content))
+
+        # 1. 크롭 적용
+        if crop and any(crop.get(k) is not None for k in ("x1", "y1", "x2", "y2")):
+            x1 = int(crop.get("x1", 0))
+            y1 = int(crop.get("y1", 0))
+            x2 = int(crop.get("x2", 0))
+            y2 = int(crop.get("y2", 0))
+
+            # 좌표 정규화 (x1 < x2, y1 < y2)
+            if x2 < x1:
+                x1, x2 = x2, x1
+            if y2 < y1:
+                y1, y2 = y2, y1
+
+            im = im.crop((x1, y1, x2, y2))
+
+        # 2. 리사이즈 (비율 유지)
+        if size is not None:
+            im.thumbnail((int(size), int(size)))
+
+        # 3. 포맷 변환
+        ext = Path(filename).suffix.lower()
+        fmt = "JPEG" if ext in (".jpg", ".jpeg") else ext.replace(".", "").upper() or "PNG"
+
+        # JPEG 포맷 변환 시 알파 채널 제거
+        if fmt == "JPEG" and im.mode in ("RGBA", "LA", "P"):
+            im = im.convert("RGB")
+
+        # 4. bytes 저장
+        out = io.BytesIO()
+        im.save(out, format=fmt)
+        return out.getvalue()

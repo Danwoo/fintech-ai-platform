@@ -1,0 +1,29 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: no-commit-to-branch
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.10
+    hooks:
+      - id: ruff-check
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint
+        language: system
+        entry: bash -c 'cd frontend && for f in "$@"; do set -- "$@" "${f#frontend/}"; shift; done && npx eslint --fix "$@"' bash
+        files: ^frontend/.*\.(js|jsx|ts|tsx)$
+        exclude: ^frontend/prisma\.config\.ts$
+        pass_filenames: true
+
+      - id: tsc
+        name: tsc
+        language: system
+        entry: bash -c 'cd frontend && npx tsc --noEmit'
+        files: ^frontend/.*\.(ts|tsx)$
+        pass_filenames: false

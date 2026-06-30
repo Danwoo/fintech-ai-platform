@@ -1,0 +1,88 @@
+processes:
+  backend:
+    vars:
+      PORT: 8000
+    command: "fuser -k {{.PORT}}/tcp 2>/dev/null; uv run python -m uvicorn main:app --reload --host 0.0.0.0 --port {{.PORT}}"
+    working_dir: "backend-service/app"
+    availability:
+      restart: "on_failure"
+
+  devactivity:
+    vars:
+      PORT: 8001
+    command: "fuser -k {{.PORT}}/tcp 2>/dev/null; uv run python -m uvicorn main:app --reload --host 0.0.0.0 --port {{.PORT}}"
+    working_dir: "devactivity-service/app"
+    availability:
+      restart: "on_failure"
+
+  file:
+    vars:
+      PORT: 8100
+    command: "fuser -k {{.PORT}}/tcp 2>/dev/null; uv run python -m uvicorn main:app --reload --host 0.0.0.0 --port {{.PORT}}"
+    working_dir: "file-service/app"
+    availability:
+      restart: "on_failure"
+
+  portfolio-mcp:
+    vars:
+      PORT: 8002
+    command: "fuser -k {{.PORT}}/tcp 2>/dev/null; uv run python -m uvicorn main:app --reload --host 0.0.0.0 --port {{.PORT}}"
+    working_dir: "portfolio-mcp-service/app"
+    availability:
+      restart: "on_failure"
+
+  multi-agent:
+    vars:
+      PORT: 8003
+    command: "fuser -k {{.PORT}}/tcp 2>/dev/null; uv run python -m uvicorn main:app --reload --host 0.0.0.0 --port {{.PORT}}"
+    working_dir: "multi-agent-service/app"
+    availability:
+      restart: "on_failure"
+
+  market-data-mcp:
+    vars:
+      PORT: 8004
+    command: "fuser -k {{.PORT}}/tcp 2>/dev/null; uv run python -m uvicorn main:app --reload --host 0.0.0.0 --port {{.PORT}}"
+    working_dir: "market-data-mcp-service/app"
+    availability:
+      restart: "on_failure"
+
+  disclosure-mcp:
+    vars:
+      PORT: 8005
+    command: "fuser -k {{.PORT}}/tcp 2>/dev/null; uv run python -m uvicorn main:app --reload --host 0.0.0.0 --port {{.PORT}}"
+    working_dir: "disclosure-mcp-service/app"
+    availability:
+      restart: "on_failure"
+
+  news-mcp:
+    vars:
+      PORT: 8006
+    command: "fuser -k {{.PORT}}/tcp 2>/dev/null; uv run python -m uvicorn main:app --reload --host 0.0.0.0 --port {{.PORT}}"
+    working_dir: "news-mcp-service/app"
+    availability:
+      restart: "on_failure"
+
+  web-mcp:
+    vars:
+      PORT: 8007
+    command: "fuser -k {{.PORT}}/tcp 2>/dev/null; uv run python -m uvicorn main:app --reload --host 0.0.0.0 --port {{.PORT}}"
+    working_dir: "web-mcp-service/app"
+    availability:
+      restart: "on_failure"
+
+  doc-search-mcp:
+    vars:
+      PORT: 8008
+    command: "fuser -k {{.PORT}}/tcp 2>/dev/null; uv run python -m uvicorn main:app --reload --host 0.0.0.0 --port {{.PORT}}"
+    working_dir: "doc-search-mcp-service/app"
+    availability:
+      restart: "on_failure"
+
+  frontend:
+    vars:
+      PORT: 3000
+    command: "fuser -k {{.PORT}}/tcp 2>/dev/null; PORT={{.PORT}} npm run dev"
+    working_dir: "frontend"
+    availability:
+      restart: "no"

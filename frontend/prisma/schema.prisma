@@ -1,0 +1,261 @@
+generator client {
+  provider = "prisma-client"
+  output   = "./generated"
+}
+
+generator table_sql {
+  provider = "node ./prisma/table-generator.cjs"
+  output   = "./init"
+}
+
+datasource db {
+  provider = "sqlserver"
+}
+
+/// 사용자
+model User {
+  id            String    @id @db.NVarChar(36)              /// 사용자 ID
+  email         String    @unique @db.NVarChar(100)         /// 이메일
+  name          String?   @db.NVarChar(100)                 /// 사용자명
+  dept          String?   @db.NVarChar(50)                  /// 부서
+  company_id    Int?                                        /// 회사 ID
+  use_at        String    @default("Y") @db.NVarChar(5)     /// 사용여부
+  appr_at       String    @default("N") @db.NVarChar(5)     /// 승인여부
+  emailVerified Boolean   @default(false)                   /// 이메일 인증 여부
+  image         String?   @db.NVarChar(500)                 /// 프로필 이미지
+  reg_id        String?   @db.NVarChar(100)                 /// 생성자 ID
+  reg_dt        DateTime? @db.DateTime                      /// 생성일시
+  reg_ip        String?   @db.NVarChar(45)                  /// 생성 IP
+  reg_pid       String?   @db.NVarChar(30)                  /// 생성 프로그램 ID
+  mod_id        String?   @db.NVarChar(100)                 /// 수정자 ID
+  mod_dt        DateTime? @db.DateTime                      /// 수정일시
+  mod_ip        String?   @db.NVarChar(45)                  /// 수정 IP
+  mod_pid       String?   @db.NVarChar(30)                  /// 수정 프로그램 ID
+  @@map("TN_User")
+
+  sessions       BaSession[]
+  accounts       BaAccount[]
+  author_members AuthorMember[]
+  company        Company?       @relation(fields: [company_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+/// 회사
+model Company {
+  id           Int       @id @default(autoincrement())   /// 회사 ID
+  company_code String    @unique @db.NVarChar(30)        /// 회사 코드
+  company_nm   String    @db.NVarChar(200)               /// 회사명
+  use_at       String    @default("Y") @db.NVarChar(5)   /// 사용여부
+  reg_dt       DateTime? @db.DateTime                    /// 생성일시
+  reg_id       String?   @db.NVarChar(100)               /// 생성자 ID
+  mod_dt       DateTime? @db.DateTime                    /// 수정일시
+  mod_id       String?   @db.NVarChar(100)               /// 수정자 ID
+
+  @@map("TN_Company")
+
+  users   User[]
+  domains CompanyDomain[]
+  menus   CompanyMenu[]
+}
+
+/// 회사별 메뉴
+model CompanyMenu {
+  company_id Int                                         /// 회사 ID
+  menu_id    String    @db.NVarChar(20)                  /// 메뉴 ID
+  reg_dt     DateTime? @db.DateTime                      /// 생성일시
+  reg_id     String?   @db.NVarChar(100)                 /// 생성자 ID
+  mod_dt     DateTime? @db.DateTime                      /// 수정일시
+  mod_id     String?   @db.NVarChar(100)                 /// 수정자 ID
+
+  @@id([company_id, menu_id])
+  @@map("TN_CompanyMenu")
+
+  company Company @relation(fields: [company_id], references: [id])
+}
+
+/// 회사 이메일 도메인 매핑
+model CompanyDomain {
+  domain     String    @id @db.NVarChar(100)             /// 이메일 도메인
+  company_id Int                                         /// 회사 ID
+  reg_dt     DateTime? @db.DateTime                      /// 생성일시
+  reg_id     String?   @db.NVarChar(100)                 /// 생성자 ID
+  mod_dt     DateTime? @db.DateTime                      /// 수정일시
+  mod_id     String?   @db.NVarChar(100)                 /// 수정자 ID
+
+  @@index([company_id])
+  @@map("TN_CompanyDomain")
+
+  company Company @relation(fields: [company_id], references: [id])
+}
+
+/// 인증 세션
+model BaSession {
+  id        String   @id @db.NVarChar(36)
+  expiresAt DateTime @db.DateTime
+  token     String   @unique @db.NVarChar(500)
+  createdAt DateTime @db.DateTime
+  updatedAt DateTime @db.DateTime
+  ipAddress String?  @db.NVarChar(45)
+  userAgent String?  @db.NVarChar(500)
+  userId    String   @db.NVarChar(36)
+  authorId  String?  @db.NVarChar(20)
+  companyId Int?
+
+  @@index([userId])
+  @@map("BA_Session")
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+/// 인증 계정
+model BaAccount {
+  id                    String    @id @db.NVarChar(36)
+  accountId             String    @db.NVarChar(100)
+  providerId            String    @db.NVarChar(100)
+  userId                String    @db.NVarChar(36)
+  accessToken           String?   @db.NVarChar(500)
+  refreshToken          String?   @db.NVarChar(500)
+  idToken               String?   @db.NVarChar(Max)
+  accessTokenExpiresAt  DateTime? @db.DateTime
+  refreshTokenExpiresAt DateTime? @db.DateTime
+  scope                 String?   @db.NVarChar(500)
+  password              String?   @db.NVarChar(255)
+  createdAt             DateTime  @db.DateTime
+  updatedAt             DateTime  @db.DateTime
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("BA_Account")
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+/// 인증 토큰
+model BaVerification {
+  id         String    @id @db.NVarChar(36)
+  identifier String    @db.NVarChar(200)
+  value      String    @db.NVarChar(Max)
+  expiresAt  DateTime  @db.DateTime
+  createdAt  DateTime? @db.DateTime
+  updatedAt  DateTime? @db.DateTime
+
+  @@map("BA_Verification")
+}
+
+/// 권한
+model Author {
+  author_id  String    @id @db.NVarChar(20)  /// 권한 ID
+  author_nm  String    @db.NVarChar(200)     /// 권한명
+  reg_dt     DateTime? @db.DateTime          /// 생성일시
+  reg_id     String?   @db.NVarChar(100)     /// 생성자 ID
+  mod_dt     DateTime? @db.DateTime          /// 수정일시
+  mod_id     String?   @db.NVarChar(100)     /// 수정자 ID
+
+  @@map("TN_Author")
+  
+  author_members AuthorMember[]
+  author_menus   AuthorMenu[]
+}
+
+/// 권한별 사용자
+model AuthorMember {
+  author_id String    @db.NVarChar(20)  /// 권한 ID
+  user_id   String    @db.NVarChar(100) /// 사용자 ID
+  reg_dt    DateTime? @db.DateTime      /// 생성일시
+  reg_id    String?   @db.NVarChar(100) /// 생성자 ID
+  mod_dt    DateTime? @db.DateTime      /// 수정일시
+  mod_id    String?   @db.NVarChar(100) /// 수정자 ID
+
+  @@id([author_id, user_id])
+  @@map("TN_AuthorMember")
+  
+  author Author @relation(fields: [author_id], references: [author_id])
+  user   User   @relation(fields: [user_id], references: [email])
+}
+
+/// 메뉴
+model Menu {
+  menu_id       String    @id @db.NVarChar(20)             /// 메뉴 ID
+  menu_nm       String    @db.NVarChar(200)                /// 메뉴명
+  upper_menu_id String?   @db.NVarChar(20)                 /// 상위 메뉴 ID
+  menu_level    Int?      @default(1)                      /// 메뉴 레벨
+  sort_ordr     Int?      @default(1)                      /// 정렬순서
+  url           String?   @db.NVarChar(400)                /// URL
+  use_at        String?   @default("Y") @db.NVarChar(5)    /// 사용여부
+  icon          String?   @db.NVarChar(50)                 /// 아이콘
+  reg_dt        DateTime? @db.DateTime                     /// 생성일시
+  reg_id        String?   @db.NVarChar(100)                /// 생성자 ID
+  mod_dt        DateTime? @db.DateTime                     /// 수정일시
+  mod_id        String?   @db.NVarChar(100)                /// 수정자 ID
+
+  @@index([upper_menu_id, sort_ordr])
+  @@map("TN_Menu")
+  
+  parent       Menu?        @relation("MenuHierarchy", fields: [upper_menu_id], references: [menu_id], onDelete: NoAction, onUpdate: NoAction)
+  children     Menu[]       @relation("MenuHierarchy")
+  author_menus AuthorMenu[]
+}
+
+/// 권한별 메뉴
+model AuthorMenu {
+  author_id String    @db.NVarChar(20)  /// 권한 ID
+  menu_id   String    @db.NVarChar(20)  /// 메뉴 ID
+  reg_dt    DateTime? @db.DateTime      /// 생성일시
+  reg_id    String?   @db.NVarChar(100) /// 생성자 ID
+  mod_dt    DateTime? @db.DateTime      /// 수정일시
+  mod_id    String?   @db.NVarChar(100) /// 수정자 ID
+
+  @@id([author_id, menu_id])
+  @@map("TN_AuthorMenu")
+  
+  author Author @relation(fields: [author_id], references: [author_id])
+  menu   Menu   @relation(fields: [menu_id], references: [menu_id])
+}
+
+/// 그룹코드
+model GroupCode {
+  group_code    String    @id @db.NVarChar(5)           /// 그룹코드
+  group_code_nm String    @db.NVarChar(200)             /// 그룹코드명
+  group_code_dc String?   @db.NVarChar(200)             /// 그룹코드 설명
+  use_at        String    @default("Y") @db.NVarChar(5) /// 사용여부
+  reg_dt        DateTime? @db.DateTime                  /// 생성일시
+  reg_id        String?   @db.NVarChar(100)             /// 생성자 ID
+  mod_dt        DateTime? @db.DateTime                  /// 수정일시
+  mod_id        String?   @db.NVarChar(100)             /// 수정자 ID
+
+  @@map("TC_GroupCode")
+  
+  codes Code[]
+}
+
+/// 상세코드
+model Code {
+  group_code  String    @db.NVarChar(5)               /// 그룹코드
+  code        String    @db.NVarChar(20)              /// 코드
+  code_nm     String    @db.NVarChar(200)             /// 코드명
+  code_nm_eng String?   @db.NVarChar(200)             /// 영문 코드명
+  code_dc     String?   @db.NVarChar(200)             /// 코드 설명
+  sort_ordr   Int?      @default(1)                   /// 정렬순서
+  use_at      String    @default("Y") @db.NVarChar(5) /// 사용여부
+  reg_dt      DateTime? @db.DateTime                  /// 생성일시
+  reg_id      String?   @db.NVarChar(100)             /// 생성자 ID
+  mod_dt      DateTime? @db.DateTime                  /// 수정일시
+  mod_id      String?   @db.NVarChar(100)             /// 수정자 ID
+
+  @@id([group_code, code])
+  @@map("TC_Code")
+  
+  group_code_ref GroupCode @relation(fields: [group_code], references: [group_code])
+}
+
+/// 이메일 발송 로그
+model EmailLog {
+  id        Int      @id @default(autoincrement()) /// 로그 ID
+  to        String   @db.NVarChar(100)             /// 수신자 이메일
+  subject   String   @db.NVarChar(200)             /// 제목
+  status    String   @db.NVarChar(10)              /// 발송 상태
+  error_msg String?  @db.NVarChar(500)             /// 에러 메시지
+  reg_dt    DateTime @db.DateTime                  /// 발송일시
+
+  @@map("TH_EmailLog")
+}
+

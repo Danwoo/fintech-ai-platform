@@ -1,0 +1,134 @@
+@import url("fonts.css");
+@import "devextreme/dist/css/dx.light.css";
+@import "katex/dist/katex.min.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 스크롤바 스타일 */
+:root {
+  --primary: #f1f1f1;
+  --secondary: #888;
+  --tertiary: #555;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--secondary) var(--primary);
+}
+
+/* Chrome, Edge, and Safari */
+*::-webkit-scrollbar {
+  width: 1px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--primary);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--tertiary);
+}
+
+/* DevExtreme 위젯 테마 조정 */
+.dx-treeview-item {
+  gap: 0px;
+}
+
+/* readOnly TagBox — x 버튼 숨김 (뷰 화면) */
+.dx-tagbox.dx-state-readonly .dx-tag-remove-button {
+  display: none;
+}
+.dx-tagbox.dx-state-readonly .dx-tag-content {
+  padding-right: 7px;
+}
+
+/* readOnly 에디터 — 커서 변경 안 함 (뷰 화면) */
+.dx-state-readonly,
+.dx-state-readonly * {
+  cursor: default !important;
+}
+
+/* 그리드 셀 세로 정렬 — cellVerticalAlign prop (기본 top, 클래스 없음) */
+.dx-grid-valign-middle .dx-data-row > td {
+  vertical-align: middle !important;
+}
+.dx-grid-valign-bottom .dx-data-row > td {
+  vertical-align: bottom !important;
+}
+
+/* Switch — 모던 pill 스타일 (트랙 pill + 핸들 원형) */
+.dx-switch .dx-switch-container {
+  border-radius: var(--switch-radius, 12px);
+  border-color: #afbccc;
+  background: #d6dee8;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s;
+}
+.dx-switch.dx-state-active .dx-switch-container,
+.dx-switch.dx-state-hover .dx-switch-container,
+.dx-switch.dx-state-focused .dx-switch-container {
+  border-color: #afbccc;
+  background: #d6dee8;
+}
+.dx-switch.dx-switch-on-value .dx-switch-container {
+  border-color: var(--switch-on, #22c55e);
+  background: var(--switch-on, #22c55e);
+}
+.dx-switch.dx-switch-on-value.dx-state-active .dx-switch-container,
+.dx-switch.dx-switch-on-value.dx-state-hover .dx-switch-container,
+.dx-switch.dx-switch-on-value.dx-state-focused .dx-switch-container {
+  border-color: var(--switch-on-active, #16a34a);
+  background: var(--switch-on-active, #16a34a);
+}
+.switch-green {
+  --switch-on: #22c55e;
+  --switch-on-active: #16a34a;
+}
+.switch-red {
+  --switch-on: #ef4444;
+  --switch-on-active: #dc2626;
+}
+.switch-blue {
+  --switch-on: #3b82f6;
+  --switch-on-active: #2563eb;
+}
+.switch-gray {
+  --switch-on: #94a3b8;
+  --switch-on-active: #64748b;
+}
+.switch-yellow {
+  --switch-on: #eab308;
+  --switch-on-active: #ca8a04;
+}
+.switch-rounded {
+  --switch-radius: 12px;
+  --switch-handle-radius: 50%;
+}
+.switch-square {
+  --switch-radius: 4px;
+  --switch-handle-radius: 3px;
+}
+.dx-switch .dx-switch-handle::before,
+.dx-switch.dx-state-active .dx-switch-handle::before,
+.dx-switch.dx-state-hover .dx-switch-handle::before,
+.dx-switch.dx-state-focused .dx-switch-handle::before {
+  background: #fff;
+  border-radius: var(--switch-handle-radius, 50%);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.dx-switch .dx-switch-on {
+  color: #fff;
+}
+.dx-switch .dx-switch-off {
+  color: #64748b;
+}
+
