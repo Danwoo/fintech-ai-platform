@@ -12,6 +12,7 @@ from utils.common.time_utils import format_kst_seconds
 
 PRODUCE_INTERVAL = 10
 TOPIC = "nav.snapshot"
+SEED_COMPANY_ID = 1  # 합성 NAV 시계열이 적재되는 시드 테넌트 (데모 데이터 — 실사용 시 테넌트별 producer 로 확장)
 
 # key: (baseline, step, low, high) — 합성 random-walk 시세/체결 틱 (포트폴리오 NAV·벤치마크 시계열)
 _SERIES = {
@@ -33,7 +34,11 @@ class NavProducerManager:
     def _next_snapshot(self) -> dict:
         for key, (_base, step, low, high) in _SERIES.items():
             self._values[key] = max(low, min(high, self._values[key] + random.uniform(-step, step)))
-        return {"timestamp": format_kst_seconds(), **{k: round(v, 4) for k, v in self._values.items()}}
+        return {
+            "timestamp": format_kst_seconds(),
+            "company_id": SEED_COMPANY_ID,
+            **{k: round(v, 4) for k, v in self._values.items()},
+        }
 
     @inject
     async def start(

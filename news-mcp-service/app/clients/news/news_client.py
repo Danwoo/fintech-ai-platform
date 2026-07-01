@@ -43,6 +43,53 @@ class NewsClient:
         start = max(page_no - 1, 0) * size
         return items[start : start + size]
 
+    @staticmethod
+    def _map_article(a: dict) -> dict:
+        """벤더 기사 한 건 → 목업과 동일 필드 스키마로 정규화 (원본 키는 보존)."""
+        if not isinstance(a, dict):
+            return {}
+        src = a.get("source")
+        if isinstance(src, dict):
+            src = src.get("name") or src.get("title") or ""
+        return {
+            **a,
+            "article_id": a.get("article_id") or a.get("id") or a.get("uuid") or "",
+            "title": a.get("title") or "",
+            "summary": a.get("summary") or a.get("description") or a.get("content") or "",
+            "url": a.get("url") or a.get("link") or "",
+            "source": src or a.get("press") or "",
+            "published_at": a.get("published_at") or a.get("publishedAt") or a.get("pubDate") or "",
+            "company_name": a.get("company_name") or a.get("company") or "",
+        }
+
+    @classmethod
+    def _wrap_vendor(cls, raw: dict) -> dict:
+        """벤더 원본 JSON → repository._parse_items 가 읽는 _envelope 형태로 정규화.
+
+        벤더별 상이한 items/total 키를 흡수해(articles·items·results·data / totalResults·totalCount·total)
+        실데이터가 조용히 빈 결과로 흘러가는 것을 막는다.
+        """
+        items: list = []
+        total: int | None = None
+        if isinstance(raw, list):
+            items = raw
+        elif isinstance(raw, dict):
+            for key in ("articles", "items", "results", "data", "article"):
+                val = raw.get(key)
+                if isinstance(val, dict):  # {"item": [...]} 래퍼 또는 단건 기사 오브젝트
+                    val = val.get("item", val) if "item" in val else [val]
+                if isinstance(val, list):
+                    items = val
+                    break
+            if not items and (raw.get("title") or raw.get("id") or raw.get("article_id")):
+                items = [raw]  # 상세 단건이 최상위 기사 오브젝트로 오는 벤더
+            for tkey in ("totalResults", "totalCount", "total"):
+                if raw.get(tkey) is not None:
+                    total = int(raw[tkey] or 0)
+                    break
+        mapped = [cls._map_article(a) for a in items if isinstance(a, dict)]
+        return cls._envelope(mapped, total if total is not None else len(mapped))
+
     async def _get(self, endpoint: str, params: dict) -> dict:
         """GET {base}/{endpoint} → JSON dict. 일시 오류(502·503·504·네트워크) 재시도.
 
@@ -70,7 +117,8 @@ class NewsClient:
         num_of_rows: int = 10,
     ) -> dict:
         if self.use_real_api:
-            return await self._get("search", {"q": keyword, "category": category, "page": page_no, "pageSize": num_of_rows})
+            raw = await self._get("search", {"q": keyword, "category": category, "page": page_no, "pageSize": num_of_rows})
+            return self._wrap_vendor(raw)
         items = fx.all_articles()
         if keyword:
             kw = keyword.lower()
@@ -88,9 +136,10 @@ class NewsClient:
         num_of_rows: int = 10,
     ) -> dict:
         if self.use_real_api:
-            return await self._get(
+            raw = await self._get(
                 "company", {"ticker": ticker, "name": company_name, "category": category, "page": page_no, "pageSize": num_of_rows}
             )
+            return self._wrap_vendor(raw)
         tk = fx.resolve_ticker(ticker, company_name)
         items = fx.articles_for(tk) if tk else []
         if category:
@@ -104,7 +153,8 @@ class NewsClient:
         num_of_rows: int = 10,
     ) -> dict:
         if self.use_real_api:
-            return await self._get("article", {"id": article_id})
+            raw = await self._get("article", {"id": article_id})
+            return self._wrap_vendor(raw)
         article = fx.article_by_id(article_id)
         items = [article] if article else []
         return self._envelope(items, total=len(items))
@@ -117,9 +167,10 @@ class NewsClient:
         num_of_rows: int = 10,
     ) -> dict:
         if self.use_real_api:
-            return await self._get(
+            raw = await self._get(
                 "sentiment", {"ticker": ticker, "name": company_name, "page": page_no, "pageSize": num_of_rows}
             )
+            return self._wrap_vendor(raw)
         tk = fx.resolve_ticker(ticker, company_name)
         articles = fx.articles_for(tk) if tk else []
         items = [
@@ -159,10 +210,11 @@ class NewsClient:
         num_of_rows: int = 10,
     ) -> dict:
         if self.use_real_api:
-            return await self._get(
+            raw = await self._get(
                 "disclosure",
                 {"ticker": ticker, "name": company_name, "type": disclosure_type, "page": page_no, "pageSize": num_of_rows},
             )
+            return self._wrap_vendor(raw)
         tk = fx.resolve_ticker(ticker, company_name)
         pool = fx.articles_for(tk) if tk else fx.all_articles()
         items = [a for a in pool if a.get("disclosure_linked")]

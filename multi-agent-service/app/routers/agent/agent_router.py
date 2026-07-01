@@ -22,6 +22,8 @@ def _switches_to_enabled(b) -> set[str]:
         "disclosure": b.switch3,
         "news": b.switch4,
         "doc-search": b.switch5,
+        # portfolio 는 프론트 switch 없음 — 항상 활성(보유종목·계좌 조회 tool 바인딩 보장)
+        "portfolio": True,
     }
     return {svc for svc, on in m.items() if on}
 

@@ -68,18 +68,38 @@ def resolve_corp_code(corp: str) -> str:
     return _BY_NAME.get(key.lower(), key)
 
 
-def _fin_row(account_nm: str, thstrm: int, frmtrm: int, sj_div: str) -> dict:
-    """DART fnlttSinglAcntAll 한 행 — 당기/전기 금액(원)과 재무제표 구분(BS·IS·CF)."""
+# 발행사·연도별 사업보고서(정기공시) 접수번호·보고서명 — 재무/배당/최대주주 행의 인용 근거(rcept_no·report_nm).
+# 재무·배당·지분 수치는 모두 해당 연도 정기보고서(사업보고서)에서 나오므로 그 공시를 출처로 단다.
+_ANNUAL_REPORT: dict[tuple[str, int], tuple[str, str]] = {
+    ("00126380", 2024): ("20250314000123", "사업보고서 (2024.12)"),
+    ("00126380", 2023): ("20240314000100", "사업보고서 (2023.12)"),
+    ("00164779", 2024): ("20250313000201", "사업보고서 (2024.12)"),
+    ("00164742", 2024): ("20250318000150", "사업보고서 (2024.12)"),
+    ("00266961", 2024): ("20250320000310", "사업보고서 (2024.12)"),
+}
+
+
+def _report_ref(corp_code: str, year: int) -> tuple[str, str]:
+    """해당 발행사·연도의 사업보고서 접수번호·보고서명 (인용 근거). 미수록이면 합성 접수번호."""
+    return _ANNUAL_REPORT.get((corp_code, year), (f"{year + 1}0401000000", f"사업보고서 ({year}.12)"))
+
+
+def _fin_row(account_nm: str, thstrm: int, frmtrm: int, sj_div: str, rcept_no: str, report_nm: str) -> dict:
+    """DART fnlttSinglAcntAll 한 행 — 당기/전기 금액(원)과 재무제표 구분(BS·IS·CF), 출처 공시(rcept_no)."""
     return {
         "account_nm": account_nm,
         "sj_div": sj_div,  # BS=재무상태표, IS=손익계산서, CF=현금흐름표
         "thstrm_amount": str(thstrm),
         "frmtrm_amount": str(frmtrm),
         "currency": "KRW",
+        "rcept_no": rcept_no,
+        "report_nm": report_nm,
     }
 
 
 def _statements(
+    corp_code: str,
+    year: int,
     *,
     revenue: int,
     op_profit: int,
@@ -92,44 +112,50 @@ def _statements(
     prev_op_profit: int,
     prev_net_income: int,
 ) -> list[dict]:
+    rcept_no, report_nm = _report_ref(corp_code, year)
     return [
-        _fin_row("매출액", revenue, prev_revenue, "IS"),
-        _fin_row("영업이익", op_profit, prev_op_profit, "IS"),
-        _fin_row("당기순이익", net_income, prev_net_income, "IS"),
-        _fin_row("자산총계", assets, assets, "BS"),
-        _fin_row("부채총계", liabilities, liabilities, "BS"),
-        _fin_row("자본총계", equity, equity, "BS"),
-        _fin_row("영업활동현금흐름", op_cashflow, op_cashflow, "CF"),
+        _fin_row("매출액", revenue, prev_revenue, "IS", rcept_no, report_nm),
+        _fin_row("영업이익", op_profit, prev_op_profit, "IS", rcept_no, report_nm),
+        _fin_row("당기순이익", net_income, prev_net_income, "IS", rcept_no, report_nm),
+        _fin_row("자산총계", assets, assets, "BS", rcept_no, report_nm),
+        _fin_row("부채총계", liabilities, liabilities, "BS", rcept_no, report_nm),
+        _fin_row("자본총계", equity, equity, "BS", rcept_no, report_nm),
+        _fin_row("영업활동현금흐름", op_cashflow, op_cashflow, "CF", rcept_no, report_nm),
     ]
 
 
 # 단위: 백만원 근사 (DART 는 원 단위 문자열이나, 샘플은 백만원 정수로 가독성 우선)
 MOCK_FINANCIALS: dict[tuple[str, int, str], list[dict]] = {
     ("00126380", 2024, "CFS"): _statements(
+        "00126380", 2024,
         revenue=300_870_000, op_profit=32_730_000, net_income=34_450_000,
         assets=514_530_000, liabilities=112_340_000, equity=402_190_000,
         op_cashflow=65_080_000, prev_revenue=258_940_000, prev_op_profit=6_570_000,
         prev_net_income=15_490_000,
     ),
     ("00126380", 2023, "CFS"): _statements(
+        "00126380", 2023,
         revenue=258_940_000, op_profit=6_570_000, net_income=15_490_000,
         assets=455_900_000, liabilities=92_230_000, equity=363_670_000,
         op_cashflow=44_120_000, prev_revenue=302_230_000, prev_op_profit=43_380_000,
         prev_net_income=55_650_000,
     ),
     ("00164779", 2024, "CFS"): _statements(
+        "00164779", 2024,
         revenue=66_190_000, op_profit=23_470_000, net_income=19_800_000,
         assets=110_700_000, liabilities=44_200_000, equity=66_500_000,
         op_cashflow=28_300_000, prev_revenue=32_770_000, prev_op_profit=-7_730_000,
         prev_net_income=-9_140_000,
     ),
     ("00164742", 2024, "CFS"): _statements(
+        "00164742", 2024,
         revenue=175_230_000, op_profit=14_240_000, net_income=13_120_000,
         assets=295_400_000, liabilities=180_700_000, equity=114_700_000,
         op_cashflow=11_900_000, prev_revenue=162_660_000, prev_op_profit=15_130_000,
         prev_net_income=12_270_000,
     ),
     ("00266961", 2024, "CFS"): _statements(
+        "00266961", 2024,
         revenue=10_730_000, op_profit=1_980_000, net_income=1_130_000,
         assets=39_400_000, liabilities=16_200_000, equity=23_200_000,
         op_cashflow=2_640_000, prev_revenue=9_670_000, prev_op_profit=1_490_000,
@@ -168,6 +194,7 @@ MOCK_FILINGS: list[dict] = [
 
 
 def _dividend(corp_code: str, year: int, eps: int, dps_common: int, payout_ratio: str, yield_pct: str) -> dict:
+    rcept_no, report_nm = _report_ref(corp_code, year)
     return {
         "corp_code": corp_code,
         "bsns_year": str(year),
@@ -175,6 +202,8 @@ def _dividend(corp_code: str, year: int, eps: int, dps_common: int, payout_ratio
         "주당현금배당금(원)": str(dps_common),
         "현금배당성향(%)": payout_ratio,
         "현금배당수익률(%)": yield_pct,
+        "rcept_no": rcept_no,
+        "report_nm": report_nm,
     }
 
 
@@ -188,12 +217,15 @@ MOCK_DIVIDENDS: dict[tuple[str, int], list[dict]] = {
 
 
 def _shareholder(corp_code: str, name: str, relation: str, shares: int, ratio: str) -> dict:
+    rcept_no, report_nm = _report_ref(corp_code, 2024)
     return {
         "corp_code": corp_code,
         "nm": name,
         "relate": relation,  # 본인·특수관계인 관계
         "trmend_posesn_stock_co": str(shares),  # 기말 소유주식수
         "trmend_posesn_stock_qota_rt": ratio,  # 기말 지분율(%)
+        "rcept_no": rcept_no,
+        "report_nm": report_nm,
     }
 
 

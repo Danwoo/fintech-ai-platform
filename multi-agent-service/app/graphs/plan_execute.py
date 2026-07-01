@@ -272,10 +272,7 @@ def _extract_query(messages: list) -> str:
     """State messages 에서 마지막 사용자 쿼리 추출."""
     for m in reversed(messages):
         if isinstance(m, HumanMessage):
-            content = m.content
-            if "\n\n[이전 대화 결과]" in content:
-                return content.split("\n\n[이전 대화 결과]")[0].strip()
-            return content.strip()
+            return m.content.strip()
     return ""
 
 

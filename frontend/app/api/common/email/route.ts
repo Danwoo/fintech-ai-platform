@@ -6,6 +6,9 @@ import path from "path";
 import dns from "dns/promises";
 import { prisma } from "@/lib/prisma/client";
 import { getKSTTime } from "@/utils/common/timeUtils";
+import { getClientIp, rateLimit } from "@/lib/rateLimit";
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function toFriendlyEmailError(message: string): string {
   if (
@@ -22,9 +25,23 @@ function toFriendlyEmailError(message: string): string {
   return `이메일 발송에 실패했습니다.\n주소를 확인하거나 잠시 후 다시 시도해주세요.`;
 }
 
+// 가입 전(pre-auth) OTP 발송 엔드포인트라 withAuth 미적용 — 세션이 없는 회원가입 흐름에서 호출됨.
+// 남용 방어는 (1) 호출자 HTML 주입 제거(서버 템플릿만 렌더 → 피싱 릴레이 차단), (2) 수신자 검증, (3) IP·수신자 rate limit 로 대체.
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const { to, html } = body;
+  const ip = getClientIp(request);
+  if (!rateLimit(`email:ip:${ip}`, 5, 60_000)) {
+    return NextResponse.json({ message: `요청이 너무 많습니다.\n잠시 후 다시 시도해주세요.` }, { status: 429 });
+  }
+
+  const body = await request.json().catch(() => null);
+  const to = typeof body?.to === "string" ? body.to.trim() : "";
+
+  if (!to || to.length > 254 || !EMAIL_REGEX.test(to)) {
+    return NextResponse.json({ message: `유효하지 않은 이메일 주소입니다.\n주소를 다시 확인해주세요.` }, { status: 400 });
+  }
+  if (!rateLimit(`email:to:${to.toLowerCase()}`, 3, 60_000)) {
+    return NextResponse.json({ message: `요청이 너무 많습니다.\n잠시 후 다시 시도해주세요.` }, { status: 429 });
+  }
 
   const transporter = nodemailer.createTransport({
     host: env.EMAIL_HOST,
@@ -77,6 +94,8 @@ export async function POST(request: NextRequest) {
     },
   });
 
+  // 발신 메일은 서버 고정 템플릿만 렌더 — 호출자 제공 HTML 은 주입하지 않음
+  const instruction = "해당 코드를 복사 후, 붙여넣기 해주세요.";
   let mailTemplate = "";
   mailTemplate +=
     '<table style="width:100%;max-width:800px;background:#F5F7FC;text-align:center;margin:0 auto;padding:30px 0 40px;">';
@@ -86,7 +105,7 @@ export async function POST(request: NextRequest) {
   mailTemplate += '<div style="color:#303F67;font-size:52px;font-weight:bold;letter-spacing:6px;">' + otp + "</div>";
   mailTemplate +=
     '<div style="display:inline-block;background:#EEF2FF;color:#303F67;padding:6px 16px;border-radius:8px;margin-top:14px;font-size:14px;">' +
-    html +
+    instruction +
     "</div>";
   mailTemplate += "</div></td></tr>";
   mailTemplate += "</table>";

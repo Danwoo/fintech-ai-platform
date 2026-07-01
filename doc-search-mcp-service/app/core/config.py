@@ -16,16 +16,16 @@ class Settings(BaseSettings):
     USE_REAL_API: bool = False
 
     # Hybrid Topic Vector Search (USE_REAL_API=true 일 때만 사용)
-    MILVUS_DB_HOST: str = "http://198.51.100.35:19530"
-    MILVUS_DB_TOKEN: str = "root:CHANGE_ME"
+    MILVUS_DB_HOST: str = ""
+    MILVUS_DB_TOKEN: str = ""
     MILVUS_DB_NAME: str = "finance_doc_topic"
-    REDIS_DB_HOST: str = "198.51.100.35"
+    REDIS_DB_HOST: str = ""
     REDIS_DB_PORT: int = 6379
     REDIS_DB_PASSWORD: str = ""
-    OPENAI_EMBEDDING_URL: str = "http://198.51.100.35:18080/embedding/v1"
+    OPENAI_EMBEDDING_URL: str = ""
     OPENAI_EMBEDDING_MODEL_NAME: str = "BAAI/bge-m3"
     OPENAI_EMBEDDING_API_KEY: str = "EMPTY"
-    OPENAI_RERANKER_URL: str = "http://198.51.100.35:18080/reranker/v1/rerank"
+    OPENAI_RERANKER_URL: str = ""
     OPENAI_RERANKER_MODEL_NAME: str = "BAAI/bge-reranker-v2-m3"
     OPENAI_API_KEY: str = ""
 

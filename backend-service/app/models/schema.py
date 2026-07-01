@@ -51,6 +51,7 @@ class MessageQueue(Base):
 class Watchlist(Base):
     __tablename__ = "TN_Watchlist"
 
+    company_id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
     ticker: Mapped[str] = mapped_column(String(20), primary_key=True)
     issuer_nm: Mapped[str | None] = mapped_column(String(200), nullable=True)
     market: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -72,6 +73,7 @@ class Watchlist(Base):
 class Portfolio(Base):
     __tablename__ = "TN_Portfolio"
 
+    company_id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
     portfolio_id: Mapped[str] = mapped_column(String(20), primary_key=True)
     portfolio_nm: Mapped[str] = mapped_column(String(200), nullable=False)
     sort_ordr: Mapped[int | None] = mapped_column(Integer, default=1)
@@ -87,6 +89,7 @@ class Portfolio(Base):
 class Holding(Base):
     __tablename__ = "TN_Holding"
 
+    company_id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False)
     portfolio_id: Mapped[str] = mapped_column(String(20), primary_key=True)
     ticker: Mapped[str] = mapped_column(String(20), primary_key=True)
     holding_nm: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -104,9 +107,10 @@ class Holding(Base):
 # 6. Nav (producer → message queue → consumer 파이프라인이 적재하는 포트폴리오 NAV/가격 시계열, 대시보드 차트 소스)
 class Nav(Base):
     __tablename__ = "TN_Nav"
-    __table_args__ = (Index("idx_nav_dt", "nav_dt"),)
+    __table_args__ = (Index("idx_nav_dt", "nav_dt"), Index("idx_nav_company", "company_id"))
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(Integer, nullable=False)
     nav_dt: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
     nav: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     benchmark: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)

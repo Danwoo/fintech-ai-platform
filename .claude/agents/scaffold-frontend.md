@@ -37,7 +37,7 @@ tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion
 
 6. **Prisma 모델 추가** (Prisma 직접 시) — `frontend/prisma/schema.prisma` 에 모델 추가 (1:N 이면 부모/자식 모두 + relation). 공통 감사 컬럼 자동 포함. **`npm run dev:prisma:push` 는 실행하지 않음** — 사용자가 도메인 필드 채운 후 직접 실행.
 
-7. **lint/format** — `rtk pre-commit run --files <생성·수정된 파일 list>` 실행. 실패 (auto-fix 불가능한 에러) 시 즉시 수정.
+7. **lint/format** — `pre-commit run --files <생성·수정된 파일 list>` 실행. 실패 (auto-fix 불가능한 에러) 시 즉시 수정.
 
 ## 에이전트 행동 제약
 

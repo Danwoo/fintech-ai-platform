@@ -47,7 +47,7 @@ tools: Read, Write, Edit, Glob, Grep, Bash, AskUserQuestion
    - 1:1: `{entity}_router`
    - 1:N: **부모 router 만** (자식 라우트는 부모 router 안에 nested 로 정의됨)
 
-8. **lint/format** — `rtk pre-commit run --files <생성·수정된 파일 list>` 실행. ruff-check (--fix) + ruff-format 자동 적용. 실패 (auto-fix 불가능한 에러) 시 즉시 수정.
+8. **lint/format** — `pre-commit run --files <생성·수정된 파일 list>` 실행. ruff-check (--fix) + ruff-format 자동 적용. 실패 (auto-fix 불가능한 에러) 시 즉시 수정.
 
 ## 에이전트 행동 제약
 

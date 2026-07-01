@@ -17,12 +17,12 @@ from agents.registry import load_domain_registry
 from agents.sub_agents import create_domain_agents, create_sub_agents, get_domain_descriptions
 from clients.mcp.mcp_client import get_cached_tools
 from core.logger import logger
-from graphs.plan_execute import build_plan_execute_graph
+from graphs.plan_execute import COMPLIANCE_DISCLAIMER, build_plan_execute_graph
 from langchain_core.messages import AIMessage, HumanMessage
 from langfuse import Langfuse
 from langfuse.langchain import CallbackHandler
 from services.agent.guardrail import check_guardrail
-from services.agent.response_cache import ResponseCache
+from services.agent.response_cache import ResponseCache, make_cache_key
 from utils.agent import example_ai_events as tex
 from utils.agent.events import (
     DOMAIN_KO_LABEL,
@@ -44,19 +44,9 @@ from utils.agent.events import (
 )
 from utils.agent.grounding import any_sourced, compute_grounding
 from utils.agent.mcp_classify import filter_tool_map
+from utils.agent.numeric_guard import annotate_ungrounded_numbers
 from utils.agent.plan_utils import plan_domains
 from utils.agent.trace_metadata import build_trace_metadata
-
-# Writer 권한 분리 적용 sub-agent — fabrication 빈발 상위 + 시장 수치·종목 식별자 생성 차단 대상
-_WRITER_SUB_AGENTS = {
-    "financials_sub",
-    "valuation_sub",
-    "credit_sub",
-    "news_sub",
-    "macro_sub",
-    "sentiment_sub",
-    "sector_sub",
-}
 
 
 class AgentService:
@@ -153,7 +143,7 @@ class AgentService:
             map_concurrency=self._config.MA_MAP_CONCURRENCY,
             map_timeout_s=self._config.MA_MAP_TIMEOUT_S,
             reduce_mode=self._config.MA_REDUCE_MODE,
-            writer_llm=self._router_llm,
+            writer_llm=self._generator_llm,
         )
 
     async def _initial_messages(self, email: str, gid: int, question: str) -> list:
@@ -182,8 +172,9 @@ class AgentService:
         """
         # 가드레일은 그래프 첫 노드(보안검사)에서 수행 — 차단 시 아래 스트림 루프에서 처리.
 
-        # 응답 캐시 hit 시 즉시 반환
-        cached = self._response_cache.get(question)
+        # 응답 캐시 hit 시 즉시 반환 — (email,gid,enabled_mcps,question) 조합 키로 교차 유출 차단
+        cache_key = make_cache_key(email, gid, enabled_mcps, question)
+        cached = self._response_cache.get(cache_key)
         if cached is not None:
             logger.info("[AgentService] 캐시 hit — gid=%s, len=%d", gid, len(cached))
             yield step_event("cache", "hit", message=MSG_CACHE_HIT)
@@ -357,6 +348,19 @@ class AgentService:
                             answer_text_full += final_text
                             yield text_event(final_text)
 
+            # 근거 없음 caveat — example-ai 경로와 일관되게 native 도 미근거 시 고지
+            grounding = compute_grounding(tool_calls_total)
+            if answer_text_full and not any_sourced(grounding):
+                yield step_event("grounding", "no_evidence", message="검색 근거가 없어 일반 지식으로 답합니다.")
+
+            # 미근거 수치 가드레일 — tool 출력에 없는 금융 수치를 결정론적으로 표기
+            if answer_text_full:
+                annotation, _ = annotate_ungrounded_numbers(answer_text_full, tool_calls_total)
+                if annotation:
+                    tail = f"\n\n{annotation}"
+                    answer_text_full += tail
+                    yield text_event(tail)
+
             elapsed_s = round(time.monotonic() - t_start, 2)
             metadata = build_trace_metadata(
                 agent_calls_total,
@@ -369,7 +373,7 @@ class AgentService:
             )
 
             if answer_text_full:
-                self._response_cache.set(question, answer_text_full)
+                self._response_cache.set(cache_key, answer_text_full)
 
             yield trace_event(metadata or {"reason": "metadata_disabled", "answer_len": len(answer_text_full)})
 
@@ -390,6 +394,16 @@ class AgentService:
                     → media → step(response) → response_chunk×N → title → follow_up → workflow_complete
         """
         yield tex.start_event(query=question)
+
+        # 응답 캐시 — native 경로와 동일한 (email,gid,enabled_mcps,question) 키로 격리(교차 유출 차단).
+        cache_key = make_cache_key(email, gid, enabled_mcps, question)
+        cached = self._response_cache.get(cache_key)
+        if cached is not None:
+            logger.info("[AgentService] example-ai 캐시 hit — gid=%s, len=%d", gid, len(cached))
+            yield tex.step_event("response", MSG_CACHE_HIT)
+            yield tex.response_chunk_event(cached, 1, len(cached))
+            yield tex.workflow_complete_event()
+            return
 
         # 가드레일은 그래프 첫 노드(보안검사)에서 수행 — 차단 시 아래 스트림 루프에서 처리.
         graph = await self._build_graph(enabled_mcps)
@@ -498,10 +512,27 @@ class AgentService:
                         if tc:
                             tool_calls_total[:] = tc
 
+            # 컴플라이언스 고지 — 토큰 스트림이 결정론적 disclaimer 를 누락했으면 마지막 청크로 1회 보강.
+            if answer_text_full.strip() and "투자 조언이 아닙니다" not in answer_text_full:
+                tail = f"\n\n{COMPLIANCE_DISCLAIMER}"
+                chunk_id += 1
+                answer_text_full += tail
+                yield tex.response_chunk_event(tail, chunk_id, len(answer_text_full))
+
+            # 미근거 수치 가드레일 — tool 출력에 없는 금융 수치를 결정론적으로 표기 (native 경로와 동일).
+            if answer_text_full.strip():
+                annotation, _ = annotate_ungrounded_numbers(answer_text_full, tool_calls_total)
+                if annotation:
+                    tail = f"\n\n{annotation}"
+                    chunk_id += 1
+                    answer_text_full += tail
+                    yield tex.response_chunk_event(tail, chunk_id, len(answer_text_full))
+
             # 답변 토큰 스트림 종료 후 title / follow_up (실패 시 생략 — 예외 전파 금지)
             # 그래프 trace 밖(post-loop)이라 run_name + session 부여해 generic 루트 대신 thread 에 귀속.
             post_cfg = {"metadata": {"session_id": f"{email}:{gid}"}}
             if answer_text_full.strip():
+                self._response_cache.set(cache_key, answer_text_full)
                 title = await self._gen_title(question, answer_text_full, config=post_cfg)
                 if title:
                     yield tex.title_event(title)

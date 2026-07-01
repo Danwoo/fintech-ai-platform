@@ -1,4 +1,5 @@
 from core.auth_context import get_email
+from core.authorization import ROLE_ADMIN, ROLE_OPERATOR, require_role, require_user
 from core.container import Container
 from core.security import verify_access_token
 from dependency_injector.wiring import Provide, inject
@@ -21,7 +22,7 @@ router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
 
 # ── Portfolio (master) ─────────────────────────────────────────────────
-@router.get("", response_model=PortfoliosOut, dependencies=[Depends(verify_access_token)])
+@router.get("", response_model=PortfoliosOut, dependencies=[Depends(verify_access_token), Depends(require_user)])
 @inject
 async def select_portfolio_list(
     request: Request,
@@ -37,7 +38,7 @@ async def select_portfolio_list(
     return PortfoliosOut(items=items, total_count=total_count)
 
 
-@router.post("", response_model=CreateOut, dependencies=[Depends(verify_access_token)])
+@router.post("", response_model=CreateOut, dependencies=[Depends(verify_access_token), Depends(require_role(ROLE_ADMIN, ROLE_OPERATOR))])
 @inject
 async def insert_portfolio(
     request: Request,
@@ -50,7 +51,7 @@ async def insert_portfolio(
     return CreateOut(data={"portfolio_id": keys[0]} if keys else None)
 
 
-@router.get("/{portfolio_id}", response_model=PortfolioOut, dependencies=[Depends(verify_access_token)])
+@router.get("/{portfolio_id}", response_model=PortfolioOut, dependencies=[Depends(verify_access_token), Depends(require_user)])
 @inject
 async def select_portfolio(
     request: Request,
@@ -61,7 +62,7 @@ async def select_portfolio(
     return portfolio_service.select_portfolio(args)
 
 
-@router.put("/{portfolio_id}", response_model=UpdateOut, dependencies=[Depends(verify_access_token)])
+@router.put("/{portfolio_id}", response_model=UpdateOut, dependencies=[Depends(verify_access_token), Depends(require_role(ROLE_ADMIN, ROLE_OPERATOR))])
 @inject
 async def update_portfolio(
     request: Request,
@@ -76,7 +77,7 @@ async def update_portfolio(
     return UpdateOut()
 
 
-@router.delete("/{portfolio_id}", response_model=DeleteOut, dependencies=[Depends(verify_access_token)])
+@router.delete("/{portfolio_id}", response_model=DeleteOut, dependencies=[Depends(verify_access_token), Depends(require_role(ROLE_ADMIN, ROLE_OPERATOR))])
 @inject
 async def delete_portfolio(
     request: Request,
@@ -89,7 +90,7 @@ async def delete_portfolio(
 
 
 # ── Holding (detail) ───────────────────────────────────────────────────
-@router.get("/{portfolio_id}/holding", response_model=HoldingsOut, dependencies=[Depends(verify_access_token)])
+@router.get("/{portfolio_id}/holding", response_model=HoldingsOut, dependencies=[Depends(verify_access_token), Depends(require_user)])
 @inject
 async def select_holding_list(
     request: Request,
@@ -106,7 +107,7 @@ async def select_holding_list(
     return HoldingsOut(items=items, total_count=total_count)
 
 
-@router.post("/{portfolio_id}/holding", response_model=CreateOut, dependencies=[Depends(verify_access_token)])
+@router.post("/{portfolio_id}/holding", response_model=CreateOut, dependencies=[Depends(verify_access_token), Depends(require_role(ROLE_ADMIN, ROLE_OPERATOR))])
 @inject
 async def insert_holding(
     request: Request,
@@ -122,7 +123,7 @@ async def insert_holding(
 
 
 @router.get(
-    "/{portfolio_id}/holding/{ticker}", response_model=HoldingOut, dependencies=[Depends(verify_access_token)]
+    "/{portfolio_id}/holding/{ticker}", response_model=HoldingOut, dependencies=[Depends(verify_access_token), Depends(require_user)]
 )
 @inject
 async def select_holding(
@@ -136,7 +137,7 @@ async def select_holding(
 
 
 @router.put(
-    "/{portfolio_id}/holding/{ticker}", response_model=UpdateOut, dependencies=[Depends(verify_access_token)]
+    "/{portfolio_id}/holding/{ticker}", response_model=UpdateOut, dependencies=[Depends(verify_access_token), Depends(require_role(ROLE_ADMIN, ROLE_OPERATOR))]
 )
 @inject
 async def update_holding(
@@ -155,7 +156,7 @@ async def update_holding(
 
 
 @router.delete(
-    "/{portfolio_id}/holding/{ticker}", response_model=DeleteOut, dependencies=[Depends(verify_access_token)]
+    "/{portfolio_id}/holding/{ticker}", response_model=DeleteOut, dependencies=[Depends(verify_access_token), Depends(require_role(ROLE_ADMIN, ROLE_OPERATOR))]
 )
 @inject
 async def delete_holding(

@@ -1,2 +1,7 @@
 .vscode/
 .omo/
+
+# Secrets — never commit env files (Python services load .env.{APP_ENV})
+.env
+.env.*
+!.env.example

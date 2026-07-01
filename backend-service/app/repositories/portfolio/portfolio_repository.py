@@ -21,6 +21,7 @@ class PortfolioRepository:
                      , FORMAT(mod_dt, 'yyyy-MM-dd HH:mm:ss') AS mod_dt
                      , mod_id
                 FROM TN_Portfolio
+                WHERE company_id = :company_id
                 ) A
             WHERE 1 = 1
         """
@@ -28,6 +29,7 @@ class PortfolioRepository:
     def select_portfolio_list(self, args: dict) -> tuple[list[dict], int]:
         base_sql = self.query_select_portfolio()
         sql_where, sql_params = build_filter_params(args)
+        sql_params["company_id"] = args["company_id"]
         order_by = parse_sort(args.get("sort")) or "sort_ordr ASC, portfolio_id ASC"
 
         skip = int(args.get("skip", 0))
@@ -73,7 +75,8 @@ class PortfolioRepository:
     def insert_portfolio(self, args: dict) -> tuple:
         sql = """
             INSERT INTO TN_Portfolio (
-                 portfolio_id
+                 company_id
+               , portfolio_id
                , portfolio_nm
                , sort_ordr
                , use_at
@@ -85,7 +88,8 @@ class PortfolioRepository:
             )
             OUTPUT INSERTED.portfolio_id
             VALUES (
-                 :portfolio_id
+                 :company_id
+               , :portfolio_id
                , :portfolio_nm
                , :sort_ordr
                , :use_at
@@ -111,14 +115,15 @@ class PortfolioRepository:
                  , mod_id       = :mod_id
                  , mod_dt       = CURRENT_TIMESTAMP
              WHERE portfolio_id  = :portfolio_id
+               AND company_id    = :company_id
         """
         with self.sql_client.connect() as conn:
             with conn.begin():
                 conn.execute(text(sql), args)
 
     def delete_portfolio(self, args: dict) -> None:
-        sql_holdings = "DELETE FROM TN_Holding WHERE portfolio_id = :portfolio_id"
-        sql_portfolio = "DELETE FROM TN_Portfolio WHERE portfolio_id = :portfolio_id"
+        sql_holdings = "DELETE FROM TN_Holding WHERE portfolio_id = :portfolio_id AND company_id = :company_id"
+        sql_portfolio = "DELETE FROM TN_Portfolio WHERE portfolio_id = :portfolio_id AND company_id = :company_id"
         with self.sql_client.connect() as conn:
             with conn.begin():
                 conn.execute(text(sql_holdings), args)
@@ -142,7 +147,10 @@ class PortfolioRepository:
                      , FORMAT(h.mod_dt, 'yyyy-MM-dd HH:mm:ss') AS mod_dt
                      , h.mod_id
                 FROM TN_Holding h
-                INNER JOIN TN_Portfolio p ON h.portfolio_id = p.portfolio_id
+                INNER JOIN TN_Portfolio p
+                        ON h.portfolio_id = p.portfolio_id
+                       AND h.company_id = p.company_id
+                WHERE h.company_id = :company_id
                 ) A
             WHERE 1 = 1
               AND portfolio_id = :portfolio_id
@@ -153,6 +161,7 @@ class PortfolioRepository:
         sql_where, sql_params = build_filter_params(args)
         order_by = parse_sort(args.get("sort")) or "ticker ASC"
         sql_params["portfolio_id"] = args["portfolio_id"]
+        sql_params["company_id"] = args["company_id"]
 
         skip = int(args.get("skip", 0))
         take = args.get("take")
@@ -197,7 +206,8 @@ class PortfolioRepository:
     def insert_holding(self, args: dict) -> tuple:
         sql = """
             INSERT INTO TN_Holding (
-                 portfolio_id
+                 company_id
+               , portfolio_id
                , ticker
                , holding_nm
                , quantity
@@ -211,7 +221,8 @@ class PortfolioRepository:
             )
             OUTPUT INSERTED.portfolio_id, INSERTED.ticker
             VALUES (
-                 :portfolio_id
+                 :company_id
+               , :portfolio_id
                , :ticker
                , :holding_nm
                , :quantity
@@ -241,13 +252,16 @@ class PortfolioRepository:
                  , mod_dt      = CURRENT_TIMESTAMP
              WHERE portfolio_id = :portfolio_id
                AND ticker        = :ticker
+               AND company_id    = :company_id
         """
         with self.sql_client.connect() as conn:
             with conn.begin():
                 conn.execute(text(sql), args)
 
     def delete_holding(self, args: dict) -> None:
-        sql_holding = "DELETE FROM TN_Holding WHERE portfolio_id = :portfolio_id AND ticker = :ticker"
+        sql_holding = (
+            "DELETE FROM TN_Holding WHERE portfolio_id = :portfolio_id AND ticker = :ticker AND company_id = :company_id"
+        )
         with self.sql_client.connect() as conn:
             with conn.begin():
                 conn.execute(text(sql_holding), args)

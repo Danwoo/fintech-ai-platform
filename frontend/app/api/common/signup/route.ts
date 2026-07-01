@@ -4,9 +4,15 @@ import { auth } from "@/lib/auth/auth";
 import { DEFAULT_USER_AUTHOR_ID } from "@/constants/protected";
 import { getKSTTime } from "@/utils/common/timeUtils";
 import { isOEM } from "@/utils/common/edition";
+import { getClientIp, rateLimit } from "@/lib/rateLimit";
 
 export async function GET(req: NextRequest) {
   try {
+    // 공개 이메일 존재 확인 — 열거(enumeration) 남용 방어를 위해 IP rate limit
+    if (!rateLimit(`signup:check:${getClientIp(req)}`, 20, 60_000)) {
+      return NextResponse.json({ result: false, name: "email" }, { status: 429 });
+    }
+
     const { searchParams } = req.nextUrl;
     const getP1 = searchParams.get("p1");
     const email = getP1 ?? "";

@@ -25,6 +25,7 @@ class WatchlistRepository:
                      , FORMAT(mod_dt, 'yyyy-MM-dd HH:mm:ss') AS mod_dt
                      , mod_id
                 FROM TN_Watchlist
+                WHERE company_id = :company_id
                 ) A
             WHERE 1 = 1
         """
@@ -33,6 +34,7 @@ class WatchlistRepository:
         base_sql = self.query_select_watchlist()
 
         sql_where, sql_params = build_filter_params(args)
+        sql_params["company_id"] = args["company_id"]
         order_by = parse_sort(args.get("sort")) or "ticker ASC"
 
         skip = int(args.get("skip", 0))
@@ -71,6 +73,7 @@ class WatchlistRepository:
 
     def select_watchlist(self, args: dict) -> dict | None:
         sql = self.query_select_watchlist() + " AND ticker = :ticker"
+        # company_id 는 inner WHERE 에 이미 바인딩됨 (args 에 포함)
         with self.sql_client.connect() as conn:
             result = conn.execute(text(sql), args).mappings().fetchone()
             return dict(result) if result else None
@@ -78,7 +81,8 @@ class WatchlistRepository:
     def insert_watchlist(self, args: dict) -> tuple:
         sql = """
             INSERT INTO TN_Watchlist (
-                 ticker
+                 company_id
+               , ticker
                , issuer_nm
                , market
                , sector
@@ -95,7 +99,8 @@ class WatchlistRepository:
             )
             OUTPUT INSERTED.ticker
             VALUES (
-                 :ticker
+                 :company_id
+               , :ticker
                , :issuer_nm
                , :market
                , :sector
@@ -131,6 +136,7 @@ class WatchlistRepository:
                  , mod_id       = :mod_id
                  , mod_dt       = CURRENT_TIMESTAMP
              WHERE ticker        = :ticker
+               AND company_id    = :company_id
         """
         with self.sql_client.connect() as conn:
             with conn.begin():
@@ -141,6 +147,7 @@ class WatchlistRepository:
             DELETE
               FROM TN_Watchlist
              WHERE ticker = :ticker
+               AND company_id = :company_id
         """
         with self.sql_client.connect() as conn:
             with conn.begin():

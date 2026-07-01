@@ -48,8 +48,7 @@ export const Signup: FC<Props> = () => {
   // 이메일 발송 처리 API
   const emailSendApi = async (email: string) => {
     try {
-      const message = "<p>해당 코드를 복사 후, 붙여넣기 해주세요.</p>";
-      await sendEmail(email, message);
+      await sendEmail(email);
 
       showMessage(
         "알림",

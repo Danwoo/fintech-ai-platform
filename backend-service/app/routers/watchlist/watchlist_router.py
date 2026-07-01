@@ -1,5 +1,6 @@
 # router/watchlist_router.py
 from core.auth_context import get_email
+from core.authorization import ROLE_ADMIN, ROLE_OPERATOR, require_role, require_user
 from core.container import Container
 from core.security import verify_access_token
 from dependency_injector.wiring import Provide, inject
@@ -17,7 +18,7 @@ from utils.common.devextreme_utils import parse_filter_sort
 router = APIRouter(prefix="/watchlist", tags=["watchlist"])
 
 
-@router.get("", response_model=WatchlistsOut, dependencies=[Depends(verify_access_token)])
+@router.get("", response_model=WatchlistsOut, dependencies=[Depends(verify_access_token), Depends(require_user)])
 @inject
 def select_watchlist_list(
     request: Request,
@@ -34,7 +35,7 @@ def select_watchlist_list(
     return WatchlistsOut(items=items, total_count=total_count)
 
 
-@router.post("", response_model=CreateOut, dependencies=[Depends(verify_access_token)])
+@router.post("", response_model=CreateOut, dependencies=[Depends(verify_access_token), Depends(require_role(ROLE_ADMIN, ROLE_OPERATOR))])
 @inject
 def insert_watchlist(
     request: Request,
@@ -48,7 +49,7 @@ def insert_watchlist(
     return CreateOut(data={"ticker": keys[0]} if keys else None)
 
 
-@router.get("/{ticker}", response_model=WatchlistOut, dependencies=[Depends(verify_access_token)])
+@router.get("/{ticker}", response_model=WatchlistOut, dependencies=[Depends(verify_access_token), Depends(require_user)])
 @inject
 def select_watchlist(
     request: Request,
@@ -59,7 +60,7 @@ def select_watchlist(
     return watchlist_service.select_watchlist(args)
 
 
-@router.put("/{ticker}", response_model=UpdateOut, dependencies=[Depends(verify_access_token)])
+@router.put("/{ticker}", response_model=UpdateOut, dependencies=[Depends(verify_access_token), Depends(require_role(ROLE_ADMIN, ROLE_OPERATOR))])
 @inject
 def update_watchlist(
     request: Request,
@@ -75,7 +76,7 @@ def update_watchlist(
     return UpdateOut()
 
 
-@router.delete("/{ticker}", response_model=DeleteOut, dependencies=[Depends(verify_access_token)])
+@router.delete("/{ticker}", response_model=DeleteOut, dependencies=[Depends(verify_access_token), Depends(require_role(ROLE_ADMIN, ROLE_OPERATOR))])
 @inject
 def delete_watchlist(
     request: Request,

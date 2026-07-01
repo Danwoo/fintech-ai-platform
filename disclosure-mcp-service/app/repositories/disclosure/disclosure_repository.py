@@ -22,7 +22,8 @@ class DisclosureRepository:
 
     @staticmethod
     def _as_list(raw: dict) -> list[dict]:
-        items = raw.get("list", [])
+        # client 가 실/mock 공통으로 `data` 봉투로 정규화해 돌려준다 (DART 네이티브 `list` 아님)
+        items = raw.get("data", [])
         return items if isinstance(items, list) else []
 
     async def search_company(self, params: CompanySearchIn) -> DisclosureSearchOut:
@@ -50,8 +51,7 @@ class DisclosureRepository:
 
     async def get_disclosure_detail(self, params: DisclosureDetailIn) -> DisclosureSearchOut:
         raw = await self.client.get_disclosure_detail(rcept_no=params.rcept_no)
-        item = raw.get("item")
-        return self._out([item] if item else [])
+        return self._out(self._as_list(raw))
 
     async def get_dividend(self, params: DividendIn) -> DisclosureSearchOut:
         raw = await self.client.get_dividend(corp=params.corp, year=params.year)

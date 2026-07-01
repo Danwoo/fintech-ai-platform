@@ -673,7 +673,7 @@ cd <service>/app && uv run uvicorn main:app --reload
 process-compose up        # staging+ 는 docker-compose
 
 # lint/format 일괄 실행 (Backend ruff + Frontend ESLint/Prettier)
-rtk pre-commit run --all
+pre-commit run --all
 ```
 
 ---

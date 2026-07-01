@@ -33,5 +33,14 @@ class Settings(BaseSettings):
             raise ValueError("JWT_SECRET 이 비어 있습니다 (frontend·backend 와 동일값 필요).")
         return self
 
+    @model_validator(mode="after")
+    def _require_disclosure_key_when_real(self) -> "Settings":
+        # 실 DART 모드는 키 필수 — 키 없이 USE_REAL_API 만 켜는 잘못된 구성 fail-fast (mock 경로는 키 불필요)
+        if self.USE_REAL_API and not self.DISCLOSURE_API_KEY:
+            raise ValueError(
+                "USE_REAL_API=true 인데 DISCLOSURE_API_KEY 가 비어 있습니다 (mock 모드는 USE_REAL_API=false)."
+            )
+        return self
+
 
 settings = Settings()

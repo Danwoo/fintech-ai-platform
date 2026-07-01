@@ -186,12 +186,12 @@ _URL_PATTERNS: dict[str, _Pat] = {
     "disclosure_financials": _Pat("rcept_no", "report_nm", content_f="account_nm", **_DART),
     "disclosure_dividend": _Pat("rcept_no", "report_nm", content_f="se", **_DART),
     "disclosure_major_shareholder": _Pat("rcept_no", "report_nm", content_f="repror", **_DART),
-    # 시세 (시장 벤더) — 티커(종목코드) 기준 종목 페이지
-    "market_quote": _Pat("ticker", "name", content_f="price", **_MKT),
-    "market_ohlc": _Pat("ticker", "name", content_f="close", **_MKT),
-    "market_search": _Pat("ticker", "name", content_f="market", **_MKT),
+    # 시세 (시장 벤더) — 종목코드(symbol) 기준 종목 페이지
+    "market_quote": _Pat("symbol", "name", content_f="price", **_MKT),
+    "market_ohlc": _Pat("symbol", "name", content_f="close", **_MKT),
+    "market_search": _Pat("symbol", "name", content_f="market", **_MKT),
     "market_index": _Pat(
-        "index_code", "index_name", content_f="value", url=_MARKET_INDEX, kind="지수", favicon=_MARKET_FAVICON
+        "index_code", "name", content_f="value", url=_MARKET_INDEX, kind="지수", favicon=_MARKET_FAVICON
     ),
 }
 

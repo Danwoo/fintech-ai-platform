@@ -13,6 +13,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel
 
 SEC_BLOCKED_MARKER = "<!-- SEC_BLOCKED -->"
+SEC_FAILOPEN_MARKER = "<!-- SEC_FAILOPEN -->"
 
 
 def create_guardrail_system_prompt() -> str:
@@ -132,5 +133,8 @@ async def check_guardrail(
             )
         return GuardrailVerdict(is_safe=bool(result.is_safe), category=result.category or "")
     except Exception as e:
-        logger.warning("[Guardrail] 예외 발생 (fail-open): %s", e)
-        return GuardrailVerdict(is_safe=True, reason=f"error: {type(e).__name__}")
+        # fail-open: 가용성 우선(판정 불가 시 통과). category 불명이라 카테고리별 fail-closed 는 불가.
+        # 인젝션/유해 카테고리 fail-closed 가 필요하면 여기서 is_safe=False 로 전환하되 오탐 급증을 감수해야 함.
+        # 지금은 통과시키되 error 로그 + 명시 signal 로 fail-open 을 알람 가능하게 남긴다.
+        logger.error("[Guardrail] %s 판정 실패 → fail-open 통과: %s", SEC_FAILOPEN_MARKER, e)
+        return GuardrailVerdict(is_safe=True, reason=f"failopen: {type(e).__name__}")

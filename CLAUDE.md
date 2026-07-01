@@ -79,7 +79,7 @@ Frontend `lib/auth/`: `auth.ts` (서버), `auth-client.ts` (`signIn/signOut/sign
 
 ```bash
 # 전체 lint/format (Backend ruff + Frontend ESLint+Prettier 일괄)
-rtk pre-commit run --all
+pre-commit run --all
 
 # Frontend
 npm run dev

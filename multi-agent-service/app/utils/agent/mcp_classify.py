@@ -13,7 +13,7 @@ _PREFIX_TO_SERVICE = [
     ("web_", "web"),
 ]
 
-ALL_MCP_SERVICES = {"market-data", "disclosure", "news", "web", "doc-search"}
+ALL_MCP_SERVICES = {"market-data", "disclosure", "news", "web", "doc-search", "portfolio"}
 
 
 def classify_tool(tool_name: str) -> str | None:

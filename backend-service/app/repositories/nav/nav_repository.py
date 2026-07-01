@@ -9,7 +9,8 @@ class NavRepository:
     def insert_nav(self, args: dict) -> None:
         sql = """
             INSERT INTO TN_Nav (
-                 nav_dt
+                 company_id
+               , nav_dt
                , nav
                , benchmark
                , daily_return
@@ -20,7 +21,8 @@ class NavRepository:
                , mod_dt
             )
             VALUES (
-                 :nav_dt
+                 :company_id
+               , :nav_dt
                , :nav
                , :benchmark
                , :daily_return
@@ -44,6 +46,7 @@ class NavRepository:
                  , CAST(drawdown AS float)     AS drawdown
               FROM TN_Nav
              WHERE nav_dt >= DATEADD(MINUTE, -:minutes, GETDATE())
+               AND company_id = :company_id
              ORDER BY nav_dt ASC
         """
         with self.sql_client.connect() as conn:

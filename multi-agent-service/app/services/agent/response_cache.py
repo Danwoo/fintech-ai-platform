@@ -6,9 +6,21 @@
 
 from __future__ import annotations
 
+import json
 import threading
 import time
 from collections import OrderedDict
+from collections.abc import Iterable
+
+
+def make_cache_key(email: str, gid: int, enabled_mcps: Iterable[str], question: str) -> str:
+    """(email, gid, enabled_mcps, question) 결정론적 캐시 키.
+
+    bare question 만으로 키를 잡으면 다른 사용자·세션·도구조합의 답변이 섞여 PII 교차 유출 위험이 있다.
+    사용자·세션·활성 MCP 집합·질문을 모두 키에 포함해 격리한다 (native·example-ai 공통).
+    """
+    mcps = sorted(frozenset(enabled_mcps or ()))
+    return json.dumps([email or "", int(gid or 0), mcps, question or ""], ensure_ascii=False)
 
 
 class ResponseCache:

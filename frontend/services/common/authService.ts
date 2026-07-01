@@ -3,10 +3,10 @@ import { apiCall } from "@/utils/common/api/client";
 const EMAIL_URL = "/api/common/email";
 const SIGNUP_URL = "/api/common/signup";
 
-export const sendEmail = async (to: string, html: string) => {
+export const sendEmail = async (to: string) => {
   return apiCall<{ message: string }>(EMAIL_URL, {
     method: "POST",
-    data: { to, html },
+    data: { to },
   });
 };
 

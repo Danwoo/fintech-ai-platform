@@ -9,6 +9,13 @@ import { useUploadProgressStore } from "@/stores/shared/uploadProgressStore";
 
 const getBaseUrl = () => getExternalBaseUrl(env.NEXT_PUBLIC_FILE_SERVICE_URL, "/file-service");
 
+// 파일 바이너리를 Authorization 헤더로 받아 object URL 로 변환 — 토큰을 URL 쿼리에 노출하지 않음
+const fetchObjectUrl = async (url: string, token: string | null): Promise<string> => {
+  const blob = await apiCall<Blob>(url, { method: "GET", token, responseType: "blob" });
+  if (!(blob instanceof Blob)) throw new Error("파일을 불러오지 못했습니다.");
+  return URL.createObjectURL(blob);
+};
+
 /**
  * 파일 업로드
  * @param files 업로드할 File 배열
@@ -160,23 +167,23 @@ export const deleteFile = async (
 };
 
 /**
- * 파일 다운로드 URL 생성
+ * 파일 다운로드 object URL 생성 (Authorization 헤더로 blob 요청)
  * @param atch_file_id 첨부파일 ID
  * @param file_sn 파일 일련번호 (기본값 0)
- * @returns 다운로드 URL 문자열
+ * @returns object URL 문자열 (blob:)
  */
 export const selectFileDownloadUrl = async (atch_file_id: string, file_sn: number = 0): Promise<string> => {
   const token = await getClientToken();
   const base = `${getBaseUrl()}/file/${atch_file_id}/detail/${file_sn}/download`;
-  return `${base}?token=${encodeURIComponent(token || "")}`;
+  return fetchObjectUrl(base, token);
 };
 
 /**
- * 파일 미리보기 URL 생성
+ * 파일 미리보기 object URL 생성 (Authorization 헤더로 blob 요청)
  * @param atch_file_id 첨부파일 ID
  * @param file_sn 파일 일련번호 (기본값 0)
  * @param q 미리보기 컷/크롭 옵션
- * @returns 미리보기 URL 문자열
+ * @returns object URL 문자열 (blob:)
  */
 export const selectFilePreviewUrl = async (
   atch_file_id: string,
@@ -187,12 +194,12 @@ export const selectFilePreviewUrl = async (
   const base = `${getBaseUrl()}/file/${atch_file_id}/detail/${file_sn}/preview`;
 
   const sp = new URLSearchParams();
-  sp.set("token", token || "");
   if (q?.size != null) sp.set("size", String(q.size));
   if (q?.x1 != null) sp.set("x1", String(q.x1));
   if (q?.y1 != null) sp.set("y1", String(q.y1));
   if (q?.x2 != null) sp.set("x2", String(q.x2));
   if (q?.y2 != null) sp.set("y2", String(q.y2));
 
-  return `${base}?${sp.toString()}`;
+  const qs = sp.toString();
+  return fetchObjectUrl(qs ? `${base}?${qs}` : base, token);
 };

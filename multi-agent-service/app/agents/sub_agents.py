@@ -67,14 +67,10 @@ async def create_domain_agents(
     subagent_registry: dict[str, SubAgentSpec],
     sub_agent_timeout: float = 60.0,
     max_sub_calls: int = 2,
-    writer_llm: Any = None,
-    writer_sub_agents: set[str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, list[StructuredTool]]]:
     """도메인 에이전트 생성. DomainSpec.builder 값으로 RES pipeline / ReAct 빌더 dispatch.
 
-    Args:
-        writer_llm: 권한 분리 모드용 Writer LLM (sub-agent fabrication 본질 처방).
-        writer_sub_agents: writer_llm 을 적용할 sub-agent 이름 집합. None 이면 미적용.
+    sub-agent 단위 writer 분리는 pipeline_subagent 가 담당하므로 wrap 단계는 ReAct 결과를 그대로 감싼다.
 
     Returns:
         ({domain_name: compiled_graph}, {domain_name: [wrapped_sub_tool, ...]})
@@ -91,18 +87,14 @@ async def create_domain_agents(
                 logger.warning("[domain_agents] 하위 에이전트 없음: %s (도메인: %s)", sub_name, domain_name)
                 continue
             sub_spec = subagent_registry[sub_name]
-            _writer_llm = writer_llm if (writer_sub_agents and sub_name in writer_sub_agents) else None
             tool = wrap_agent_as_tool(
                 agent=sub_agent,
                 name=sub_name,
                 description=sub_spec.description,
                 timeout=sub_agent_timeout,
                 max_calls=max_sub_calls,
-                writer_llm=_writer_llm,
             )
             domain_tools.append(tool)
-            if _writer_llm is not None:
-                logger.info("[domain_agents] %s: Writer 분리 적용", sub_name)
 
         builder = get_builder(domain_spec.builder)
         domain_agents[domain_name] = builder(

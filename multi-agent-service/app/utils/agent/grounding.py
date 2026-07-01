@@ -10,7 +10,13 @@ from utils.agent.mcp_classify import classify_tool
 
 
 def _has_payload(output) -> bool:
-    """tool 출력에 실제 데이터가 있는지 — {data|results: [...]} 비었으면 False."""
+    """tool 출력에 실제 데이터가 있는지 — 인식된 data array 가 비어있지 않을 때만 True.
+
+    DART 공시 응답은 {status, message, list:[...]} 형태(정상)거나 {status, message}(에러코드,
+    데이터 없음) 형태다. dict 는 data/results/items/list 중 비어있지 않은 리스트가 있을 때만
+    sourced 로 인정 — status/message 만 있는 에러 shape 나 빈 list 는 근거로 보지 않는다.
+    (MCP-services 에이전트가 클라이언트 경계에서 list→data 정규화하지만 그와 무관하게 견고하게.)
+    """
     if not output:
         return False
     text = output if isinstance(output, str) else str(output)
@@ -19,11 +25,11 @@ def _has_payload(output) -> bool:
     except (TypeError, ValueError):
         return bool(text.strip())
     if isinstance(obj, dict):
-        for key in ("data", "results", "items"):
+        for key in ("data", "results", "items", "list"):
             v = obj.get(key)
             if isinstance(v, list):
                 return len(v) > 0
-        return bool(obj)
+        return False
     if isinstance(obj, list):
         return len(obj) > 0
     return bool(obj)
