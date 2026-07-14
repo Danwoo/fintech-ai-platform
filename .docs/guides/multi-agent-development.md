@@ -9,7 +9,7 @@ multi-agent 는 LangGraph 를 3층으로 쌓는다:
 
 | 층 | 위치 | 역할 |
 |---|---|---|
-| ① 최상위 | `graphs/plan_execute.py` `StateGraph(PlanExecuteState)` | clarify→plan→execute→answer\|map→reduce 오케스트레이션 (손수 짠 그래프) |
+| ① 최상위 | `graphs/plan_execute/builder.py` `StateGraph(PlanExecuteState)` | clarify→plan→execute→answer\|map→reduce 오케스트레이션 (손수 짠 그래프) |
 | ② 중간 | `graphs/res_pipeline.py` (도메인별) | Route–Execute–Synthesize. sub-agent 들을 tool 로 보유 |
 | ③ 최하위 | `agents/builders.py`·`sub_agents.py` `create_agent(...)` | 프리빌트 ReAct. **= single-agent-service 가 만든 그것** |
 
@@ -35,7 +35,7 @@ failure_keyword, extra_caution)` 로 만든다 — 공통 5섹션 + 보안·진�
 1. **`agents/domains/<name>.py`** — 위 3종 작성 (example.py 복사).
 2. **`agents/registry.py`** — `from agents.domains import <name>` + `_DOMAIN_MODULES` 에 `"<name>": <name>` 등록.
 3. **`core/config.py`** — `MULTI_AGENT_DOMAINS` 기본값(또는 env)에 `"<name>"` 키 추가.
-4. **`graphs/plan_execute.py`** — `_DOMAIN_LABELS` 에 `"<name>_domain": "라벨"` + `_build_subagent_domain_map()`
+4. **`graphs/plan_execute/domain_map.py`** — `_DOMAIN_LABELS` 에 `"<name>_domain": "라벨"` + `_build_subagent_domain_map()`
    의 `from agents.domains.<name> import SUBAGENT_SPECS` 추가 (Map-Reduce 도메인 분류·라벨용).
 5. **`utils/agent/events.py`** — `DOMAIN_KO_LABEL` 에 `"<name>_domain": "라벨"` (UI step 이벤트).
 
