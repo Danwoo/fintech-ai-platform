@@ -38,7 +38,7 @@ financials.py 구조를 그대로 따르되 가이드 주석 내장. 최소 1 su
    ① `agents/domains/<name>.py` (SUBAGENT_SPECS+DOMAIN_SPEC+register)
    ② `registry.py` `_DOMAIN_MODULES` 등록
    ③ `config.MULTI_AGENT_DOMAINS` 키 추가
-   ④ `plan_execute.py` `_DOMAIN_LABELS` + `_build_subagent_domain_map()` import
+   ④ `plan_execute/domains_map.py` `_DOMAIN_LABELS` + `_build_subagent_domain_map()` import
    ⑤ `events.py` `DOMAIN_KO_LABEL` 라벨
 3. 결합점 — mcp_tools↔MCP operation_id lockstep, description↔planner/RES 라우팅.
 4. 함정 (이번 세션 실증) — 라우팅은 description 주도(뉴스·매크로 도메인 사례), clarifier 가 사내 KB 인지해야 함,

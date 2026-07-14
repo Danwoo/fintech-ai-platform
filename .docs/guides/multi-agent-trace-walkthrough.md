@@ -1,7 +1,7 @@
 # 멀티 에이전트 판단 Flow & LangSmith 시연 가이드
 
 > 처음 보는 사람에게 "이 시스템이 질문을 받아 **어떤 노드가 어떻게 판단**해 답까지 가는지"를
-> LangSmith trace 와 함께 설명하기 위한 문서. 코드 SoT = `multi-agent-service/app/graphs/plan_execute.py`.
+> LangSmith trace 와 함께 설명하기 위한 문서. 코드 SoT = `multi-agent-service/app/graphs/plan_execute/`.
 
 ---
 
