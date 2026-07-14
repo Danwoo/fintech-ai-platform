@@ -152,7 +152,7 @@ LLM 은 요일·주경계 같은 날짜 계산을 신뢰할 수 없다. "이번 
    최종 답변 조립 시 코드가 누락을 검사해 결정론적으로 보강(이미 있으면 중복 추가 안 함)
 ```
 
-> **실제 구현**: ANSWER/SYNTHESIS/MAP/REDUCE 노드 프롬프트가 모두 `"답변 맨 끝에 반드시 다음 한 줄을 그대로 덧붙이세요: ⓘ 정보 제공 목적이며 투자 조언이 아닙니다"`로 동일 문구를 지시하고(soft), 그래프가 final_answer 를 내보내기 직전 `_ensure_disclaimer()` 가 `"투자 조언이 아닙니다"` 포함 여부를 검사해 없으면 `COMPLIANCE_DISCLAIMER` 상수를 한 줄 덧붙인다(hard 백스톱, 중복 미추가). → 모델이 면책을 흘려도 컴플라이언스 불변식이 깨지지 않는다. 정본: 고지 상수·결정론 보강은 [`plan_execute.py`](../../multi-agent-service/app/graphs/plan_execute.py) `COMPLIANCE_DISCLAIMER`/`_ensure_disclaimer`, 노드 프롬프트 문구는 [`system.py`](../../multi-agent-service/app/graphs/system.py) `ANSWER_SYSTEM`/`REDUCE_SYSTEM`. 같은 마인드셋이 [가드레일 §8](llm-가드레일.md) "코드 강제 vs 프롬프트".
+> **실제 구현**: ANSWER/SYNTHESIS/MAP/REDUCE 노드 프롬프트가 모두 `"답변 맨 끝에 반드시 다음 한 줄을 그대로 덧붙이세요: ⓘ 정보 제공 목적이며 투자 조언이 아닙니다"`로 동일 문구를 지시하고(soft), 그래프가 final_answer 를 내보내기 직전 `_ensure_disclaimer()` 가 `"투자 조언이 아닙니다"` 포함 여부를 검사해 없으면 `COMPLIANCE_DISCLAIMER` 상수를 한 줄 덧붙인다(hard 백스톱, 중복 미추가). → 모델이 면책을 흘려도 컴플라이언스 불변식이 깨지지 않는다. 정본: 고지 상수·결정론 보강은 [`plan_execute/compliance.py`](../../multi-agent-service/app/graphs/plan_execute/compliance.py) `COMPLIANCE_DISCLAIMER`/`_ensure_disclaimer`, 노드 프롬프트 문구는 [`system.py`](../../multi-agent-service/app/graphs/system.py) `ANSWER_SYSTEM`/`REDUCE_SYSTEM`. 같은 마인드셋이 [가드레일 §8](llm-가드레일.md) "코드 강제 vs 프롬프트".
 
 ---
 

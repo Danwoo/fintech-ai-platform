@@ -60,7 +60,7 @@ _QUOTA_EN_PATTERN = ...           # quota exceeded / invalid api key 등 영문 
 # 개인정보(주민/카드/계좌)는 게이트웨이 PiiMaskGuard 담당(§6) — 여기선 운영정보만
 ```
 
-→ 정본: [redactor.py](../../multi-agent-service/app/utils/redaction/redactor.py) `redact_operational_info`, 적용은 [plan_execute.py](../../multi-agent-service/app/graphs/plan_execute.py)·[res_pipeline.py](../../multi-agent-service/app/graphs/res_pipeline.py)(tool 출력·sub-agent 결과를 context 에 넣기 직전) + [trace_metadata.py](../../multi-agent-service/app/utils/agent/trace_metadata.py)(SSE trace 의 task/output/narrative).
+→ 정본: [redactor.py](../../multi-agent-service/app/utils/redaction/redactor.py) `redact_operational_info`, 적용은 [plan_execute/context.py](../../multi-agent-service/app/graphs/plan_execute/context.py)·[plan_execute/domains_map.py](../../multi-agent-service/app/graphs/plan_execute/domains_map.py)·[res_pipeline.py](../../multi-agent-service/app/graphs/res_pipeline.py)(tool 출력·sub-agent 결과를 context 에 넣기 직전) + [trace_metadata.py](../../multi-agent-service/app/utils/agent/trace_metadata.py)(SSE trace 의 task/output/narrative).
 
 ```python
 '{"permanent_failure_reason": "DART_QUOTA_EXCEEDED at 10.0.1.7"}'
@@ -273,7 +273,7 @@ class SafetyGuard(CustomGuardrail):         # post_call — 출력 canary 누설
 | 인젝션·유해 쿼리 차단 | 비노출 규칙(§4 2층) | 입력단 **LLM 분류기** `check_guardrail`(§4.4) + 게이트웨이 `SafetyGuard` canary 누설 차단(§7) |
 | 욕설·유해 출력 마스킹 | `[부적절한 표현]` 안내 | 게이트웨이 `SafetyGuard` korcen `highlight_profanity`(§5·§7) |
 | 에러 원문 비노출 | 안내 | `_user_error` 한국어 마스킹([chat_router](../../devactivity-service/app/routers/chat/chat_router.py)) |
-| 컴플라이언스 고지 부착 | "끝에 한 줄 덧붙여라" | `_ensure_disclaimer` 결정론 보강([plan_execute](../../multi-agent-service/app/graphs/plan_execute.py) `COMPLIANCE_DISCLAIMER`) |
+| 컴플라이언스 고지 부착 | "끝에 한 줄 덧붙여라" | `_ensure_disclaimer` 결정론 보강([plan_execute/compliance.py](../../multi-agent-service/app/graphs/plan_execute/compliance.py) `COMPLIANCE_DISCLAIMER`) |
 | 검색 근거 정직 표기 | — | `compute_grounding` tool_calls trace 로 sourced/no_evidence 결정론 라벨([grounding](../../multi-agent-service/app/utils/agent/grounding.py)) |
 | 거절·에러 한국어 보장 | "한국어로" | 거절문·에러 **한국어 상수**(드리프트 무관) |
 

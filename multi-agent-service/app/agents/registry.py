@@ -8,7 +8,7 @@ settings 직접 import 없이 호출자(AgentService)가 config.MULTI_AGENT_DOMA
        (domain_key 는 "<도메인>_domain" 컨벤션)
     ② 아래 _DOMAIN_MODULES 에 {"<도메인>": 모듈} 등록
     ③ config.MULTI_AGENT_DOMAINS 에 키 추가 (core/config.py 기본값 또는 env)
-    ④ graphs/plan_execute.py — _DOMAIN_LABELS 에 라벨 1줄 + _build_subagent_domain_map()
+    ④ graphs/plan_execute/domains_map.py — _DOMAIN_LABELS 에 라벨 1줄 + _build_subagent_domain_map()
        의 SUBAGENT_SPECS import 목록에 추가 (Map-Reduce 도메인 분류·라벨)
     ⑤ utils/agent/events.py — DOMAIN_KO_LABEL 에 "<도메인>_domain" 라벨 (UI step 이벤트)
 플래너 프롬프트·plan 스키마는 DOMAIN_REGISTRY 에서 동적 구성되므로 별도 수정 불필요.
