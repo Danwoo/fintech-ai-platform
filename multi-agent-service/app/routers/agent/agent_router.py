@@ -9,7 +9,7 @@ from core.security import verify_access_token
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from schemas.agent.agent_schema import QueryIn, ExampleAIQueryIn
+from schemas.agent.agent_schema import ExampleAIQueryIn, QueryIn
 from services.agent.agent_service import AgentService
 from services.agent.rate_limit import RateLimiter, StreamSemaphore
 from utils.agent.mcp_classify import ALL_MCP_SERVICES
