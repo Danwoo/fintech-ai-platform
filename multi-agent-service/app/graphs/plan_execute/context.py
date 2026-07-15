@@ -13,7 +13,7 @@ def _extract_query(messages: list) -> str:
     """State messages 에서 마지막 사용자 쿼리 추출."""
     for m in reversed(messages):
         if isinstance(m, HumanMessage):
-            return m.content.strip()
+            return m.text.strip()  # content 가 멀티모달 list 여도 텍스트 파트만 추출
     return ""
 
 
