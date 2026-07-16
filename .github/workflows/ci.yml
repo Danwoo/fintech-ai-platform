@@ -125,3 +125,19 @@ jobs:
       - name: Portfolio auth hardening check
         working-directory: portfolio-mcp-service
         run: uv run python scripts/verify_auth_hardening.py
+
+  # portfolio 계산 계약 (통화별 집계 — 환율 없는 통화 혼합 스칼라합 금지 · nav 버킷 · 원본 타임스탬프 정렬 — #10)
+  portfolio-calc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Portfolio calc check
+        working-directory: portfolio-mcp-service
+        run: uv run python scripts/verify_portfolio_calc.py

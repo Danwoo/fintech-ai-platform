@@ -12,6 +12,15 @@ from utils.redaction.redactor import redact_secrets
 _DEFAULT_QUERY_DAYS = 30  # since 미지정 시 최근 30일
 
 
+def sum_by_currency(lines: list[dict], value_key: str) -> dict[str, float]:
+    """lines 의 value_key 를 통화별로 합산. 환율 없이 통화를 섞어 더하면 무의미하므로 통화별로 분리한다."""
+    totals: dict[str, float] = {}
+    for line in lines:
+        ccy = line.get("currency") or "KRW"
+        totals[ccy] = totals.get(ccy, 0.0) + float(line.get(value_key) or 0)
+    return {ccy: round(v, 2) for ccy, v in totals.items()}
+
+
 def norm_since(s: str | None, now) -> str:
     """since 정규화: 미지정=최근 30일, bare 'YYYY-MM-DD'=그날 00:00 KST."""
     if not s:

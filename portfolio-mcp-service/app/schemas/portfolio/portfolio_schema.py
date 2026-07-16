@@ -5,11 +5,18 @@ from pydantic import BaseModel, Field
 
 class AccountInfo(BaseModel):
     account_id: str = Field(description="계좌 식별자 (내부 ID, 마스킹 안 됨)")
-    account_no: str = Field(description="계좌번호. 가운데가 '[계좌번호 일부 가려짐]' 형태로 마스킹된 상태 — 복원하지 말 것")
+    account_no: str = Field(
+        description="계좌번호. 가운데가 '[계좌번호 일부 가려짐]' 형태로 마스킹된 상태 — 복원하지 말 것"
+    )
     account_name: str = Field(description="계좌 별칭 (예: 종합매매계좌, ISA, 연금저축)")
     account_type: str = Field(description="계좌 유형: cash(위탁), margin(신용), isa, pension(연금) 등")
     base_currency: str = Field(description="기준 통화 (예: KRW, USD)")
-    nav: float = Field(description="순자산가치(NAV). 기준 통화 단위. 평가금액+예수금 합")
+    nav: float = Field(
+        description="순자산가치(NAV) — 기준통화(base_currency) 분. 그 통화의 평가금액+예수금. 외화 보유분은 nav_by_currency 참조"
+    )
+    nav_by_currency: dict[str, float] = Field(
+        description="통화별 순자산가치(환율 환산 없음). 예수금은 기준통화 버킷에 포함. 단일통화 계좌면 {base_currency: nav}"
+    )
     cash_balance: float = Field(description="예수금(현금성) 잔액. 기준 통화 단위")
 
 
@@ -54,14 +61,18 @@ class HoldingsIn(BaseModel):
 class HoldingsOut(BaseModel):
     holdings: list[HoldingLine] = Field(description="보유종목 목록. 평가금액 내림차순 정렬")
     holding_count: int = Field(description="조회된 보유종목 수")
-    total_market_value: float = Field(description="조회 결과 평가금액 합계 (기준통화 환산 없이 종목통화 단위 단순합 — 통화 혼재 가능)")
+    total_market_value_by_currency: dict[str, float] = Field(
+        description="통화별 평가금액 합계(환율 환산 없음). 통화가 섞인 결과도 통화별로 분리돼 합산이 무의미해지지 않는다"
+    )
     accounts: list[str] = Field(description="결과에 포함된 계좌 식별자 목록")
 
 
 class TransactionLine(BaseModel):
     account_id: str = Field(description="거래가 속한 계좌 식별자")
     trade_date: str = Field(description="거래(체결)일. 형식 YYYY-MM-DD")
-    tx_type: str = Field(description="거래 유형: buy(매수), sell(매도), deposit(입금), withdraw(출금), dividend(배당), fee(수수료/세금)")
+    tx_type: str = Field(
+        description="거래 유형: buy(매수), sell(매도), deposit(입금), withdraw(출금), dividend(배당), fee(수수료/세금)"
+    )
     ticker: str = Field(default="", description="종목 티커. 입출금·수수료 등 종목 무관 거래는 빈 문자열")
     name: str = Field(default="", description="종목명. 종목 무관 거래는 빈 문자열")
     quantity: float = Field(default=0.0, description="수량. 입출금·수수료 등은 0")
@@ -98,7 +109,9 @@ class SearchTransactionsOut(BaseModel):
     transaction_count: int = Field(description="조회된 거래 수")
     truncated: bool = Field(description="250건 초과로 결과가 잘렸는지")
     period: str = Field(description="검색 기간. 형식 YYYY-MM-DD ~ YYYY-MM-DD")
-    net_amount: float = Field(description="거래 금액 부호합(단순합, 통화 혼재 가능). 순현금흐름 추정용")
+    net_amount_by_currency: dict[str, float] = Field(
+        description="통화별 거래 금액 부호합(환율 환산 없음). 순현금흐름 추정용 — 통화가 섞여도 통화별로 분리"
+    )
     accounts: list[str] = Field(description="결과에 포함된 계좌 식별자 목록")
 
 
@@ -109,7 +122,9 @@ class OrderLine(BaseModel):
     name: str = Field(description="종목명")
     side: str = Field(description="매매 구분: buy(매수), sell(매도)")
     order_type: str = Field(description="주문 유형: limit(지정가), market(시장가)")
-    status: str = Field(description="주문 상태: filled(체결), partial(부분체결), open(미체결), canceled(취소), rejected(거부)")
+    status: str = Field(
+        description="주문 상태: filled(체결), partial(부분체결), open(미체결), canceled(취소), rejected(거부)"
+    )
     quantity: float = Field(description="주문 수량")
     filled_quantity: float = Field(description="체결 수량")
     price: float = Field(description="주문 가격(지정가). 시장가는 0")
