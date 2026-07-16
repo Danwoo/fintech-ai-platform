@@ -1,16 +1,19 @@
 name: CI
 
-# multi-agent-service 코드가 바뀔 때만 ruff 린트를 돌린다.
+# multi-agent-service 코드가 바뀔 때 ruff 린트를,
+# lockstep 계약 양쪽(agents/domains ↔ *-mcp-service 라우터)이 바뀔 때 lockstep 검증을 돌린다.
 # main 대상 PR 과 main push 두 경우 모두 트리거.
 on:
   pull_request:
     branches: [main]
     paths:
       - "multi-agent-service/**"
+      - "*-mcp-service/app/routers/**"
   push:
     branches: [main]
     paths:
       - "multi-agent-service/**"
+      - "*-mcp-service/app/routers/**"
 
 jobs:
   ruff:
@@ -30,3 +33,13 @@ jobs:
       - name: Ruff check
         working-directory: multi-agent-service
         run: uv run ruff check app/
+
+  # SUBAGENT_SPECS.mcp_tools ↔ MCP 라우터 operation_id 정적 대조 (stdlib 전용 — 의존성 설치 불필요)
+  lockstep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: MCP lockstep check
+        run: python3 multi-agent-service/scripts/verify_mcp_lockstep.py

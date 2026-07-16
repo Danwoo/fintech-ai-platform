@@ -32,3 +32,10 @@ repos:
         entry: bash -c 'cd frontend && npx tsc --noEmit'
         files: ^frontend/.*\.(ts|tsx)$
         pass_filenames: false
+
+      - id: mcp-lockstep
+        name: mcp lockstep (mcp_tools ↔ operation_id)
+        language: system
+        entry: python3 multi-agent-service/scripts/verify_mcp_lockstep.py
+        files: ^(multi-agent-service/app/agents/domains/.*\.py|[^/]+-mcp-service/app/routers/.*\.py)$
+        pass_filenames: false
