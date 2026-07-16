@@ -59,3 +59,19 @@ jobs:
       - name: Schema parity check
         working-directory: multi-agent-service
         run: uv run python scripts/verify_schema_parity.py
+
+  # core/security.py 인증 계약 (fail-closed·헤더 전용·서비스 토큰 typ — backend-service 강화판 정렬)
+  auth-hardening:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Auth hardening check
+        working-directory: multi-agent-service
+        run: uv run python scripts/verify_auth_hardening.py
