@@ -23,6 +23,7 @@ from graphs.system import (
 )
 from langchain_core.runnables import RunnableConfig
 from utils.agent.prompting import build_node_messages
+from utils.redaction.redactor import redact_operational_info
 
 from .compliance import _ensure_disclaimer
 from .context import _build_history_ctx, _extract_query, _format_all_results_for_answer
@@ -81,8 +82,10 @@ async def _map_domain_answer(
         # Writer-as-Map: writer_llm 주입 시 항상 활성. MA_WRITER_AS_MAP=false 로 비상 우회.
         use_writer = deps.writer_llm is not None and os.getenv("MA_WRITER_AS_MAP", "true").lower() != "false"
         if use_writer:
+            # tool 출력은 LLM context 진입 직전 결정론 redaction — context.py 소비 경로와 동일 계약
             domain_evidence_blocks = [
-                f"[tool={tc.get('tool', '?')}] input={tc.get('input', '')}\noutput=\n{tc.get('output', '')}"
+                f"[tool={tc.get('tool', '?')}] input={tc.get('input', '')}"
+                f"\noutput=\n{redact_operational_info(str(tc.get('output', '')))}"
                 for tc in tool_calls_for_domain
             ]
             tool_evidence = join_tool_evidence(domain_evidence_blocks)
