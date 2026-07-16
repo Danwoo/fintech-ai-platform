@@ -13,9 +13,12 @@ pydantic import 필요 (stdlib 불가) — `uv run python scripts/verify_schema_
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
+# app import 체인이 Settings() 를 인스턴스화 — env 없는 실행(CI 등)에서 JWT_SECRET fail-fast 우회
+os.environ.setdefault("JWT_SECRET", "verify-secret")
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
 
 from graphs.plan_execute.deps import _build_dynamic_schemas  # noqa: E402
