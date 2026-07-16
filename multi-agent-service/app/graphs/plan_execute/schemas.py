@@ -1,7 +1,7 @@
-"""Plan-Execute Pydantic 스키마 + State (타입 힌트 / 정적 참조용).
+"""Plan-Execute Pydantic 스키마 + State — 단일 SoT.
 
-실제 LLM 라우팅 스키마는 build_plan_execute_graph() 가 agents.keys() 로 동적 생성한다.
-여기의 Literal 고정 모델은 타입 힌트·정적 참조 전용.
+LLM 라우팅용 동적 스키마(deps._build_dynamic_schemas)는 여기 모델을 **상속**해
+agent_name 필드만 agents.keys() 로 재정의한다. 필드 문안은 이 파일이 SoT.
 """
 
 from __future__ import annotations
@@ -12,8 +12,8 @@ from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
 
-# 정적 에이전트 목록 — 타입 힌트용. 실제 LLM 스키마는 build_plan_execute_graph() 가
-# agents.keys() 로 동적 생성한다.
+# 정적 에이전트 목록 — 타입 힌트용. LLM 스키마는 _build_dynamic_schemas 가
+# agent_name 을 str + agents.keys() description 으로 재정의한다.
 VALID_AGENTS = Literal[
     "instrument_domain",
     "financials_domain",
@@ -23,30 +23,34 @@ VALID_AGENTS = Literal[
 
 
 class StageTask(BaseModel):
-    """단일 에이전트 작업 (타입 힌트용 — Literal 고정)."""
+    """단일 에이전트 작업."""
 
     agent_name: VALID_AGENTS = Field(description="호출할 에이전트 이름")
     task: str = Field(
         description=(
-            "핵심 작업 (간결하게, 80자 이내). [이전 대화] 맥락의 지시대명사·생략을 해소해 "
-            "그 자체로 완결적인 검색어가 되도록 작성."
+            "에이전트에게 전달할 완전한 작업 지시문 (원래 질문의 구체적 맥락 포함, 30자 이상). "
+            "financials_domain: 첫 단어에 조사 유형 표시 후 구체적 주제 서술. "
+            "예) '재무 분석: 삼성전자 최근 분기 매출·영업이익 및 영업이익률 추이'. "
+            "risk_domain: 첫 단어에 분석 유형 표시 후 종목·지표 서술. "
+            "이전 stage 결과 활용 시 '이전 [에이전트명] 결과 기반으로' 형태로 연결."
         )
     )
     # 의미 기반 의존성 — execute_node 가 이 필드로 위상 정렬해 독립 tasks 를 같은 stage 로 병합
     depends_on_agents: list[str] = Field(
         default_factory=list,
-        description=(
-            "이 task가 결과를 받아야 하는 선행 에이전트 이름들. "
-            "다른 에이전트의 출력이 본 task 입력에 직접 필요하면 그 에이전트 이름을 명시. "
-            "독립 조사로 답할 수 있으면 빈 리스트 []."
-        ),
+        description="선행 에이전트 이름 리스트. 다른 에이전트 결과가 본 task 입력에 필요하면 명시. 독립 task는 [].",
     )
 
 
 class ExecutionPlan(BaseModel):
-    """LLM이 생성하는 실행 계획 (타입 힌트용)."""
+    """LLM이 생성하는 실행 계획."""
 
-    reasoning: str | None = Field(default=None, exclude=True)
+    # optional 은 plan 실패 폴백 ExecutionPlan(stages=[]) 용 — LLM 스키마(_ExecutionPlan)는 필수로 재정의
+    reasoning: str | None = Field(
+        default=None,
+        exclude=True,
+        description="계획 수립 근거 (어떤 에이전트를 왜, 어떤 순서로 호출하는지)",
+    )
     stages: list[list[StageTask]] = Field(
         description="실행 단계 목록. 각 stage 내 tasks는 병렬 실행, stages 간은 순차 실행. 도메인 외 질문이면 빈 리스트 []."
     )
