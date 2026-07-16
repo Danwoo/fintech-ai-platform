@@ -29,9 +29,10 @@ _FAULTSTRING_PATTERN = re.compile(r"<faultstring>.*?</faultstring>", flags=re.DO
 # IPv4 주소 (한글 환경에서 \b 미작동 → lookbehind/lookahead 로 자릿수 boundary 강제)
 _IPV4_PATTERN = re.compile(r"(?<!\d)(?:25[0-5]|2[0-4]\d|[01]?\d\d?)(?:\.(?:25[0-5]|2[0-4]\d|[01]?\d\d?)){3}(?!\d)")
 
-# API key 패턴 — 명시적 prefix 함께 매칭 (false positive 회피)
+# API key 패턴 — 명시적 prefix 함께 매칭 (false positive 회피). prefix 를 그룹으로 잡아
+# 구분자(공백·따옴표 포함)와 무관하게 키 전체를 치환한다.
 _API_KEY_PATTERN = re.compile(
-    r"(?:apprvKey|api[_-]?key|access[_-]?token|bearer|Authorization\s*:\s*Bearer)"
+    r"(apprvKey|api[_-]?key|access[_-]?token|bearer|Authorization\s*:\s*Bearer)"
     r"[\s=:\"']{1,4}[A-Za-z0-9_\-]{16,}",
     flags=re.IGNORECASE,
 )
@@ -59,7 +60,7 @@ def redact_operational_info(text: str | None) -> str:
     out = _FAILURE_REASON_PATTERN.sub('"permanent_failure_reason": "data_unavailable"', out)
     out = _OP_CODE_PATTERN.sub(_REDACTED_GENERIC, out)
     out = _FAULTSTRING_PATTERN.sub(_REDACTED_FAULT, out)
-    out = _API_KEY_PATTERN.sub(lambda m: m.group(0).split("=")[0].split(":")[0] + "=" + _REDACTED_API_KEY, out)
+    out = _API_KEY_PATTERN.sub(lambda m: m.group(1) + "=" + _REDACTED_API_KEY, out)
     out = _IPV4_PATTERN.sub(_REDACTED_IP, out)
     out = _QUOTA_EN_PATTERN.sub(_REDACTED_GENERIC, out)
     return out

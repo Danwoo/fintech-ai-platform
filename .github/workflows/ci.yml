@@ -91,3 +91,19 @@ jobs:
       - name: Stage topology check
         working-directory: multi-agent-service
         run: uv run python scripts/verify_stage_topology.py
+
+  # 운영정보 redaction 계약 (구분자 무관 API 키 치환 + Writer evidence 경로 적용)
+  redaction:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Redaction check
+        working-directory: multi-agent-service
+        run: uv run python scripts/verify_redaction.py
