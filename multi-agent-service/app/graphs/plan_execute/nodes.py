@@ -346,7 +346,8 @@ async def _replan_node(deps: _GraphDeps, state: PlanExecuteState, config: Runnab
         logger.info("[replan] 추가할 신규 task 없음 — 종료")
         return _signal_done()
 
-    normalized = _normalize_stages([valid])
+    # 실행 완료 에이전트를 충족된 의존성으로 시딩 — 미시딩 시 직전 결과 의존이 순환으로 오판돼 정렬 무력화
+    normalized = _normalize_stages([valid], completed=set(executed_agents))
     logger.info(
         "[replan] 추가 stage: %s (replan_count %d→%d, %s)",
         [t.agent_name for t in valid],
