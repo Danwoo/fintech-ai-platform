@@ -5,9 +5,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    APP_ENV: str = "development"
+    APP_ENV: str = "production"
     SERVICE_NAME: str = "fullstack-portfolio-mcp"
     VICTORIALOGS_URL: str = ""
+
+    # 로컬 개발 전용 JWT 우회 (default false, development 밖에서는 기동 거부)
+    AUTH_DEV_BYPASS: bool = False
 
     # 인증 — frontend·backend·multi-agent 와 동일 JWT_SECRET (사용자/에이전트 JWT + 서비스 토큰 검증)
     JWT_SECRET: str = ""
@@ -19,7 +22,7 @@ class Settings(BaseSettings):
     BROKERAGE_API_TOKEN: str = ""  # 브로커리지 read 토큰 (Bearer)
 
     model_config = SettingsConfigDict(
-        env_file=f".env.{os.getenv('APP_ENV', 'development')}",
+        env_file=f".env.{os.getenv('APP_ENV', 'production')}",
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -29,6 +32,13 @@ class Settings(BaseSettings):
         # 비-dev 에서 빈 JWT_SECRET 으로 기동 금지 (추측 가능한 비밀로 인증이 서는 것 방지 — fail-fast)
         if self.APP_ENV != "development" and not self.JWT_SECRET:
             raise ValueError("JWT_SECRET 이 비어 있습니다 (frontend·backend 와 동일값 필요).")
+        return self
+
+    @model_validator(mode="after")
+    def _forbid_dev_bypass_outside_dev(self) -> "Settings":
+        # AUTH_DEV_BYPASS 는 development 에서만 — 비-dev 기동 시 fail-fast (인증 우회가 프로덕션에 서는 것 방지)
+        if self.AUTH_DEV_BYPASS and self.APP_ENV != "development":
+            raise ValueError("AUTH_DEV_BYPASS 는 development 환경에서만 허용됩니다.")
         return self
 
     @model_validator(mode="after")
