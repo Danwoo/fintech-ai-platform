@@ -9,11 +9,13 @@ on:
     paths:
       - "multi-agent-service/**"
       - "*-mcp-service/app/routers/**"
+      - "portfolio-mcp-service/**"
   push:
     branches: [main]
     paths:
       - "multi-agent-service/**"
       - "*-mcp-service/app/routers/**"
+      - "portfolio-mcp-service/**"
 
 jobs:
   ruff:
@@ -107,3 +109,19 @@ jobs:
       - name: Redaction check
         working-directory: multi-agent-service
         run: uv run python scripts/verify_redaction.py
+
+  # portfolio-mcp-service core/security.py 인증 계약 (backend-service 강화판 정렬 — #10/#28)
+  portfolio-auth-hardening:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Portfolio auth hardening check
+        working-directory: portfolio-mcp-service
+        run: uv run python scripts/verify_auth_hardening.py
