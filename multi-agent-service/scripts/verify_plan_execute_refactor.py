@@ -18,10 +18,13 @@ from __future__ import annotations
 
 import inspect
 import json
+import os
 import sys
 import types
 from pathlib import Path
 
+# app import 체인이 Settings() 를 인스턴스화 — env 없는 실행(CI 등)에서 JWT_SECRET fail-fast 우회
+os.environ.setdefault("JWT_SECRET", "verify-secret")
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
 
 import graphs.plan_execute as pe  # noqa: E402
