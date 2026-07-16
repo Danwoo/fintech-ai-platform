@@ -75,3 +75,19 @@ jobs:
       - name: Auth hardening check
         working-directory: multi-agent-service
         run: uv run python scripts/verify_auth_hardening.py
+
+  # stage 위상 정렬 계약 (병합·분리·순환 안전망·completed 시딩)
+  stage-topology:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Stage topology check
+        working-directory: multi-agent-service
+        run: uv run python scripts/verify_stage_topology.py
