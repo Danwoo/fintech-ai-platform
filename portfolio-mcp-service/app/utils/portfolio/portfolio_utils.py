@@ -5,11 +5,13 @@ IO/DB 없는 순수 함수만 모은다(서비스에서 분리 → 단위 테스
 자유텍스트(detail 등)는 redact_secrets() 로 계좌번호/카드번호를 마스킹한 뒤 노출한다 (그 외 PII 는 게이트웨이 PiiMaskGuard 담당).
 """
 
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 
+from utils.common.time_utils import parse_iso_to_kst
 from utils.redaction.redactor import redact_secrets
 
 _DEFAULT_QUERY_DAYS = 30  # since 미지정 시 최근 30일
+_MIN_AWARE_DATETIME = datetime.min.replace(tzinfo=UTC)
 
 
 def sum_by_currency(lines: list[dict], value_key: str) -> dict[str, float]:
@@ -33,6 +35,19 @@ def norm_until(s: str | None, now) -> str:
     if not s:
         return now.strftime("%Y-%m-%dT23:59:59+09:00")
     return f"{s}T23:59:59+09:00" if len(s) == 10 else s
+
+
+def timestamp_sort_key(s: str | None) -> datetime:
+    """ISO-8601 문자열을 시간순 비교용 aware datetime 으로 변환한다."""
+    return parse_iso_to_kst(s) or _MIN_AWARE_DATETIME
+
+
+def timestamp_in_range(value: str | None, since: str, until: str) -> bool:
+    """ISO-8601 타임스탬프가 [since, until] 범위에 포함되는지 확인한다."""
+    dt = parse_iso_to_kst(value)
+    start = parse_iso_to_kst(since)
+    end = parse_iso_to_kst(until)
+    return dt is not None and start is not None and end is not None and start <= dt <= end
 
 
 def holding_line(account_id: str, h: dict) -> dict:
