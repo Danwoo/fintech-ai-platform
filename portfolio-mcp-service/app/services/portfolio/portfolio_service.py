@@ -8,6 +8,7 @@ from utils.portfolio.portfolio_utils import (
     norm_until,
     order_line,
     sum_by_currency,
+    timestamp_sort_key,
     tx_line,
 )
 from utils.redaction.redactor import redact_secrets
@@ -113,7 +114,7 @@ class PortfolioService:
 
         kws = ticker_keywords or []
         # 표시 trade_date 는 날짜로 절단되지만 정렬은 원본 타임스탬프(있으면 시:분:초까지)로 해 당일 내 순서를 보존한다
-        keyed: list[tuple[str, dict]] = []
+        keyed = []
         for acc_id, txs in tx_by_acc.items():
             for t in txs:
                 line = tx_line(acc_id, t)
@@ -123,7 +124,7 @@ class PortfolioService:
                     k.lower() in line["ticker"].lower() or k.lower() in line["name"].lower() for k in kws
                 ):
                     continue
-                keyed.append((t.get("trade_date") or "", line))
+                keyed.append((timestamp_sort_key(t.get("trade_date")), line))
         keyed.sort(key=lambda pair: pair[0])  # 시간순(오래된→최신)
         truncated = len(keyed) > _MAX_RESULTS
         rows = [line for _, line in (keyed[-_MAX_RESULTS:] if truncated else keyed)]
@@ -155,7 +156,7 @@ class PortfolioService:
 
         kws = ticker_keywords or []
         # 표시 placed_at 은 날짜로 절단되지만 정렬은 원본 타임스탬프로 해 당일 내 순서를 보존한다
-        keyed: list[tuple[str, dict]] = []
+        keyed = []
         for acc_id, orders in orders_by_acc.items():
             for o in orders:
                 line = order_line(acc_id, o)
@@ -167,7 +168,7 @@ class PortfolioService:
                     k.lower() in line["ticker"].lower() or k.lower() in line["name"].lower() for k in kws
                 ):
                     continue
-                keyed.append((o.get("placed_at") or "", line))
+                keyed.append((timestamp_sort_key(o.get("placed_at")), line))
         keyed.sort(key=lambda pair: pair[0], reverse=True)  # 최신 접수순
         truncated = len(keyed) > _MAX_RESULTS
         rows = [line for _, line in keyed[:_MAX_RESULTS]]
@@ -228,7 +229,7 @@ class PortfolioService:
                 }
             )
 
-        raw.sort(key=lambda e: e["date"], reverse=True)  # 최신순
+        raw.sort(key=lambda e: timestamp_sort_key(e["date"]), reverse=True)  # 최신순
         lines = [event_line(e) for e in raw]
         truncated = len(lines) > _MAX_RESULTS
         rows = lines[:_MAX_RESULTS]

@@ -8,6 +8,7 @@ import asyncio
 
 from clients.portfolio.portfolio_client import PortfolioClient
 from core.logger import logger
+from utils.portfolio.portfolio_utils import timestamp_in_range
 
 
 class PortfolioRepository:
@@ -36,30 +37,26 @@ class PortfolioRepository:
     async def list_transactions(self, account_id: str, since: str, until: str) -> list[dict]:
         """단일 계좌의 거래를 [since, until] 범위로 조회."""
         if self.broker.use_real:
-            resp = await self.broker.get(
-                f"/accounts/{account_id}/transactions", {"since": since, "until": until}
-            )
+            resp = await self.broker.get(f"/accounts/{account_id}/transactions", {"since": since, "until": until})
             if resp.status_code == 404:
                 logger.warning(f"거래 없음(계좌 미존재): {account_id}")
                 return []
             resp.raise_for_status()
             return resp.json()
         rows = self.broker.mock_transactions(account_id)
-        return [t for t in rows if since[:10] <= (t.get("trade_date") or "")[:10] <= until[:10]]
+        return [t for t in rows if timestamp_in_range(t.get("trade_date"), since, until)]
 
     async def list_orders(self, account_id: str, since: str, until: str) -> list[dict]:
         """단일 계좌의 주문을 [since, until] 범위(접수일 기준)로 조회."""
         if self.broker.use_real:
-            resp = await self.broker.get(
-                f"/accounts/{account_id}/orders", {"since": since, "until": until}
-            )
+            resp = await self.broker.get(f"/accounts/{account_id}/orders", {"since": since, "until": until})
             if resp.status_code == 404:
                 logger.warning(f"주문 없음(계좌 미존재): {account_id}")
                 return []
             resp.raise_for_status()
             return resp.json()
         rows = self.broker.mock_orders(account_id)
-        return [o for o in rows if since[:10] <= (o.get("placed_at") or "")[:10] <= until[:10]]
+        return [o for o in rows if timestamp_in_range(o.get("placed_at"), since, until)]
 
     async def find_account(self, account_id: str) -> dict | None:
         """account_id → 계좌 (활동 조회 전 존재 확인용)."""
@@ -69,9 +66,7 @@ class PortfolioRepository:
                 return a
         return None
 
-    async def list_holdings_many(
-        self, account_ids: list[str], concurrency: int = 6
-    ) -> dict[str, list[dict]]:
+    async def list_holdings_many(self, account_ids: list[str], concurrency: int = 6) -> dict[str, list[dict]]:
         """여러 계좌 보유종목을 동시 조회 (개별 실패는 건너뜀). {account_id: holdings}."""
         sem = asyncio.Semaphore(concurrency)
 

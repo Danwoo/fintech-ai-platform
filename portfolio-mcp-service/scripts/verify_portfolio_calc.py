@@ -72,15 +72,15 @@ async def run_checks() -> None:
     empty = await svc.list_holdings(account_id="ACC-NONEXISTENT")
     check("holdings: 미존재 계좌는 빈 결과(무예외)", empty["holding_count"] == 0)
 
-    # (5) 정렬은 원본 타임스탬프 기준 — 같은 날짜 시:분 순서 보존
+    # (5) 정렬은 원본 타임스탬프 기준 — 같은 날짜 시:분 순서와 혼합 offset 시간순 보존
     broker = svc.portfolio_repo.broker
     broker.mock_transactions = lambda acc_id: (
         [
             {
-                "trade_date": "2026-06-03T15:30:00+09:00",
+                "trade_date": "2026-06-03T06:30:00Z",
                 "tx_type": "sell",
-                "ticker": "LATE",
-                "name": "오후",
+                "ticker": "UTC-LATE",
+                "name": "UTC 오후",
                 "quantity": 1,
                 "price": 1,
                 "amount": 1,
@@ -89,7 +89,7 @@ async def run_checks() -> None:
             {
                 "trade_date": "2026-06-03T09:15:00+09:00",
                 "tx_type": "buy",
-                "ticker": "EARLY",
+                "ticker": "KST-EARLY",
                 "name": "오전",
                 "quantity": 1,
                 "price": 1,
@@ -102,7 +102,112 @@ async def run_checks() -> None:
     )
     st = await svc.search_transactions(account_id="ACC-1001", since="2026-06-01", until="2026-06-30")
     order = [r["ticker"] for r in st["transactions"]]
-    check("tx: 같은 날짜 오름차순은 원본 시각순(EARLY→LATE)", order == ["EARLY", "LATE"])
+    check("tx: 같은 날짜 오름차순은 offset 파싱 시각순(KST-EARLY→UTC-LATE)", order == ["KST-EARLY", "UTC-LATE"])
+
+    broker.mock_transactions = lambda acc_id: (
+        [
+            {
+                "trade_date": "2026-07-01T00:15:00Z",
+                "tx_type": "buy",
+                "ticker": "TOO-EARLY",
+                "name": "범위 전",
+                "quantity": 1,
+                "price": 1,
+                "amount": -1,
+                "currency": "KRW",
+            },
+            {
+                "trade_date": "2026-07-01T01:00:00Z",
+                "tx_type": "buy",
+                "ticker": "IN-RANGE",
+                "name": "범위 안",
+                "quantity": 1,
+                "price": 1,
+                "amount": -1,
+                "currency": "KRW",
+            },
+            {
+                "trade_date": "2026-07-01T11:00:00+09:00",
+                "tx_type": "buy",
+                "ticker": "TOO-LATE",
+                "name": "범위 후",
+                "quantity": 1,
+                "price": 1,
+                "amount": -1,
+                "currency": "KRW",
+            },
+        ]
+        if acc_id == "ACC-1001"
+        else []
+    )
+    st = await svc.search_transactions(
+        account_id="ACC-1001",
+        since="2026-07-01T09:30:00+09:00",
+        until="2026-07-01T10:30:00+09:00",
+    )
+    check("tx: mock 필터는 offset 파싱 시각 범위만 포함", [r["ticker"] for r in st["transactions"]] == ["IN-RANGE"])
+
+    broker.mock_orders = lambda acc_id: (
+        [
+            {
+                "order_id": "ORDER-EARLY",
+                "ticker": "EARLY",
+                "name": "이른 주문",
+                "side": "buy",
+                "order_type": "limit",
+                "status": "open",
+                "quantity": 1,
+                "filled_quantity": 0,
+                "price": 1,
+                "avg_fill_price": 0,
+                "placed_at": "2026-07-01T09:00:00+09:00",
+                "currency": "KRW",
+            },
+            {
+                "order_id": "ORDER-LATE",
+                "ticker": "LATE",
+                "name": "늦은 주문",
+                "side": "buy",
+                "order_type": "limit",
+                "status": "open",
+                "quantity": 1,
+                "filled_quantity": 0,
+                "price": 1,
+                "avg_fill_price": 0,
+                "placed_at": "2026-07-01T01:15:00Z",
+                "currency": "KRW",
+            },
+        ]
+        if acc_id == "ACC-1001"
+        else []
+    )
+    so = await svc.search_orders(account_id="ACC-1001", since="2026-07-01", until="2026-07-01")
+    check(
+        "orders: 최신순은 offset 파싱 시각순(UTC LATE→KST EARLY)",
+        [r["order_id"] for r in so["orders"]] == ["ORDER-LATE", "ORDER-EARLY"],
+    )
+
+    broker.mock_transactions = lambda acc_id: (
+        [
+            {
+                "trade_date": "2026-07-01T01:00:00Z",
+                "tx_type": "buy",
+                "ticker": "IN-RANGE",
+                "name": "범위 안",
+                "quantity": 1,
+                "price": 1,
+                "amount": -1,
+                "currency": "KRW",
+            }
+        ]
+        if acc_id == "ACC-1001"
+        else []
+    )
+    activity = await svc.get_account_activity(account_id="ACC-1001", since="2026-07-01", until="2026-07-01")
+    check(
+        "activity: 최신순은 거래·주문 혼합 offset 파싱 시각순",
+        [r["action"] for r in activity["events"][:2]] == ["order", "trade"],
+    )
 
 
 def main() -> int:
