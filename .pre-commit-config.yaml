@@ -34,8 +34,8 @@ repos:
         pass_filenames: false
 
       - id: mcp-lockstep
-        name: mcp lockstep (mcp_tools ↔ operation_id)
+        name: mcp lockstep (mcp_tools·call_mcp_tool ↔ operation_id)
         language: system
         entry: python3 multi-agent-service/scripts/verify_mcp_lockstep.py
-        files: ^(multi-agent-service/app/agents/domains/.*\.py|[^/]+-mcp-service/app/routers/.*\.py)$
+        files: ^(multi-agent-service/app/agents/domains/.*\.py|[^/]+-mcp-service/app/routers/.*\.py|devactivity-service/app/.*\.py)$
         pass_filenames: false
