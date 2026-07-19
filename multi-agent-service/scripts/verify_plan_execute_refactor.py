@@ -8,6 +8,8 @@ LLM/MCP 키 없이 그래프를 '실행'하지 못하므로 실행 대신 3축�
 
 개발 도구 — 프로덕션 패키지(app/) 밖 scripts/ 에 위치해 Docker 이미지에 실리지 않는다.
 사용: `uv run python scripts/verify_plan_execute_refactor.py` (cwd=서비스 루트) → stdout 에 JSON 1개.
+`--against <ref>` 를 주면 ref 를 임시 워크트리로 꺼내 그쪽 하네스 덤프와 현재 트리 덤프를 비교해
+축별 MATCH/MISMATCH 를 출력한다 (워크트리 생성·정리는 스크립트 내부 처리, 전부 일치 시 exit 0).
 
 `graphs.plan_execute.<name>` 네임스페이스로만 접근하는 이유: origin/main 은 plan_execute 가
 단일 모듈(서브모듈 없음)이고 이 브랜치는 패키지(__init__ 재노출)다. 같은 스크립트가 양쪽에서
@@ -16,10 +18,14 @@ byte-identical 하게 돌아 동등성을 증명하려면 서브모듈 직접 im
 
 from __future__ import annotations
 
+import argparse
 import inspect
 import json
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
 import types
 from pathlib import Path
 
@@ -239,14 +245,93 @@ def _dump_topology() -> dict:
     }
 
 
-def main() -> None:
-    result = {
+def _dump_all() -> dict:
+    return {
         "constants": _dump_constants(),
         "behavior": _dump_behavior(),
         "topology": _dump_topology(),
         "sources": _dump_sources(),
     }
-    print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
+
+
+def _run_dump_at_ref(ref: str) -> dict:
+    repo_root = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"], check=True, capture_output=True, text=True
+    ).stdout.strip()
+    script_rel = Path(__file__).resolve().relative_to(repo_root)
+    worktree = tempfile.mkdtemp(prefix="verify-plan-execute-")
+    try:
+        try:
+            subprocess.run(
+                ["git", "worktree", "add", "--detach", worktree, ref],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except subprocess.CalledProcessError as e:
+            sys.exit(f"error: ref '{ref}' 워크트리 생성 실패\n{e.stderr.strip()}")
+        print(f"[against] {ref} 워크트리의 하네스 실행 중...", file=sys.stderr)
+        env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+        try:
+            proc = subprocess.run(
+                [sys.executable, str(Path(worktree) / script_rel)],
+                cwd=Path(worktree) / script_rel.parent.parent,
+                check=True,
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+        except subprocess.CalledProcessError as e:
+            sys.exit(f"error: ref '{ref}' 의 하네스 실행 실패\n{e.stderr.strip()}")
+        return json.loads(proc.stdout)
+    finally:
+        subprocess.run(["git", "worktree", "remove", "--force", worktree], capture_output=True)
+        shutil.rmtree(worktree, ignore_errors=True)
+
+
+def _diff_keys(before: dict, after: dict) -> list[str]:
+    return sorted(k for k in set(before) | set(after) if before.get(k) != after.get(k))
+
+
+def _report(before: dict, after: dict) -> bool:
+    ok = True
+    for axis in ("topology", "constants", "behavior"):
+        differ = _diff_keys(before.get(axis, {}), after.get(axis, {}))
+        if differ:
+            print(f"{axis}: MISMATCH (differ: {', '.join(differ)})")
+            ok = False
+        else:
+            print(f"{axis}: MATCH")
+    changed = _diff_keys(before.get("sources", {}), after.get("sources", {}))
+    if changed:
+        print(f"sources changed ({len(changed)}):")
+        for name in changed:
+            print(f"  - {name}")
+        ok = False
+    else:
+        print(f"sources changed: 없음 ({len(after.get('sources', {}))} symbols 동일)")
+    return ok
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="plan_execute 리팩터 전/후 정적 동등성 하네스")
+    parser.add_argument(
+        "--against",
+        metavar="REF",
+        help="비교할 git ref (예: origin/main) — 생략 시 현재 트리 덤프 JSON 만 출력",
+    )
+    args = parser.parse_args()
+
+    current = _dump_all()
+    if not args.against:
+        print(json.dumps(current, ensure_ascii=False, indent=2, sort_keys=True))
+        return
+
+    before = _run_dump_at_ref(args.against)
+    print(f"=== 비교: {args.against} vs 현재 트리 ===")
+    ok = _report(before, current)
+    print("RESULT: PASS" if ok else "RESULT: FAIL")
+    sys.exit(0 if ok else 1)
 
 
 if __name__ == "__main__":
