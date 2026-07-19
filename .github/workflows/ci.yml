@@ -1,7 +1,8 @@
 name: CI
 
 # multi-agent-service 코드가 바뀔 때 ruff 린트를,
-# lockstep 계약 양쪽(agents/domains ↔ *-mcp-service 라우터)이 바뀔 때 lockstep 검증을 돌린다.
+# lockstep 계약 양쪽(소비자: agents/domains + devactivity call_mcp_tool 리터럴 ↔ 공급자: *-mcp-service 라우터)이
+# 바뀔 때 lockstep 검증을 돌린다.
 # main 대상 PR 과 main push 두 경우 모두 트리거.
 on:
   pull_request:
@@ -10,12 +11,14 @@ on:
       - "multi-agent-service/**"
       - "*-mcp-service/app/routers/**"
       - "portfolio-mcp-service/**"
+      - "devactivity-service/**"
   push:
     branches: [main]
     paths:
       - "multi-agent-service/**"
       - "*-mcp-service/app/routers/**"
       - "portfolio-mcp-service/**"
+      - "devactivity-service/**"
 
 jobs:
   ruff:

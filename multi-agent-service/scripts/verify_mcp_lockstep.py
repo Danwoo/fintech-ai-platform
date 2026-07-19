@@ -1,9 +1,13 @@
-"""lockstep 계약 정적 검증 — SUBAGENT_SPECS.mcp_tools ↔ MCP 라우터 operation_id.
+"""lockstep 계약 정적 검증 — MCP tool 이름 소비자 ↔ MCP 라우터 operation_id.
 
-계약: agents/domains/*.py 의 모든 mcp_tools 이름이 어느 *-mcp-service 라우터의
-operation_id 와 정확히 일치해야 한다 (operation_id 가 FastMCP tool 이름의 SoT).
-위반은 런타임에 crash 가 아니라 "기동 시 경고 후 제외"로 조용히 사라지므로
-(app/agents/sub_agents.py) 정적 검사가 유일한 회귀 방어선이다.
+소비자 2축:
+  - multi-agent-service agents/domains/*.py 의 SUBAGENT_SPECS.mcp_tools
+  - devactivity-service app/ 의 call_mcp_tool(..., "리터럴") 호출부 (AST 문자열 인자)
+
+계약: 소비자의 모든 tool 이름이 어느 *-mcp-service 라우터의 operation_id 와
+정확히 일치해야 한다 (operation_id 가 FastMCP tool 이름의 SoT).
+multi-agent 쪽 위반은 "기동 시 경고 후 제외"로 조용히 사라지고 (app/agents/sub_agents.py),
+devactivity 쪽은 런타임 ValueError (clients/mcp/mcp_client.py) 라 정적 검사가 회귀 방어선이다.
 
 검사 2가지:
   (1) 소비자 이름 ⊆ 공급자 operation_id 합집합 — 미존재 이름은 위반
@@ -25,6 +29,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DOMAINS_DIR = REPO_ROOT / "multi-agent-service/app/agents/domains"
+LITERAL_CALL_DIRS = [REPO_ROOT / "devactivity-service/app"]
 EXCLUDED_SERVICES = {"template-mcp-service"}
 
 
@@ -47,6 +52,37 @@ def collect_consumer() -> dict[str, list[str]]:
                 for kw in value.keywords:
                     if kw.arg == "mcp_tools" and isinstance(kw.value, ast.List):
                         out[key.value] = [ast.literal_eval(e) for e in kw.value.elts]
+    return out
+
+
+def _literal_tool_name(call: ast.Call) -> str | None:
+    """call_mcp_tool 의 tool_name 인자 — 문자열 리터럴(위치 2번째 또는 tool_name= 키워드)만 추출."""
+    if len(call.args) >= 2 and isinstance(call.args[1], ast.Constant) and isinstance(call.args[1].value, str):
+        return call.args[1].value
+    for kw in call.keywords:
+        if kw.arg == "tool_name" and isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
+            return kw.value.value
+    return None
+
+
+def collect_literal_calls() -> dict[str, list[str]]:
+    """{tool_name: ["path:line", ...]} — call_mcp_tool 호출부의 리터럴 tool 이름 추출."""
+    out: dict[str, list[str]] = {}
+    for base in LITERAL_CALL_DIRS:
+        for path in sorted(base.rglob("*.py")):
+            tree = ast.parse(path.read_text(), filename=str(path))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                func = node.func
+                if not (
+                    (isinstance(func, ast.Name) and func.id == "call_mcp_tool")
+                    or (isinstance(func, ast.Attribute) and func.attr == "call_mcp_tool")
+                ):
+                    continue
+                name = _literal_tool_name(node)
+                if name is not None:
+                    out.setdefault(name, []).append(f"{path.relative_to(REPO_ROOT)}:{node.lineno}")
     return out
 
 
@@ -74,6 +110,7 @@ def collect_provider() -> tuple[dict[str, str], list[str]]:
 
 def main() -> int:
     consumer = collect_consumer()
+    literal_calls = collect_literal_calls()
     provider, duplicates = collect_provider()
 
     if not consumer or not provider:
@@ -81,6 +118,7 @@ def main() -> int:
         return 1
 
     missing = sorted({t for tools in consumer.values() for t in tools} - set(provider))
+    missing_literals = sorted(set(literal_calls) - set(provider))
 
     ok = True
     if missing:
@@ -89,6 +127,11 @@ def main() -> int:
         for name in missing:
             users = ", ".join(s for s, tools in consumer.items() if name in tools)
             print(f"  - {name} (사용: {users})")
+    if missing_literals:
+        ok = False
+        print("call_mcp_tool 리터럴이 어느 MCP 라우터 operation_id 에도 없음 (런타임 ValueError):")
+        for name in missing_literals:
+            print(f"  - {name} (호출: {', '.join(literal_calls[name])})")
     if duplicates:
         ok = False
         print("operation_id 중복 (MultiServerMCPClient 에서 조용히 섀도잉됨):")
@@ -98,7 +141,8 @@ def main() -> int:
     if ok:
         n_tools = len({t for tools in consumer.values() for t in tools})
         print(
-            f"lockstep OK — sub-agent {len(consumer)}개의 tool 이름 {n_tools}개 전부 operation_id {len(provider)}개에 존재, 중복 없음"
+            f"lockstep OK — sub-agent {len(consumer)}개의 tool 이름 {n_tools}개 + "
+            f"call_mcp_tool 리터럴 {len(literal_calls)}개 전부 operation_id {len(provider)}개에 존재, 중복 없음"
         )
     return 0 if ok else 1
 

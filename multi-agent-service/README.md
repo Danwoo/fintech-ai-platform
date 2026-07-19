@@ -37,7 +37,7 @@ flowchart TD
 ```
 
 - **2계층 에이전트**: 4 도메인 에이전트(instrument·financials·risk·market)가 12개 sub-agent 를 **tool 로 보유**하고, 각 sub-agent 는 ReAct + 자기 MCP tool 묶음으로 동작.
-- **도메인 → sub-agent → MCP tool(lockstep)**: `SubAgentSpec.mcp_tools` 이름이 각 MCP 라우터의 **operation_id 와 정확히 일치**해야 바인딩됨 — 미존재 도구는 기동 시 경고 후 제외(서버 확장 시 자동 바인딩). 정적 검증: `scripts/verify_mcp_lockstep.py` (pre-commit `mcp-lockstep` + CI `lockstep` job).
+- **도메인 → sub-agent → MCP tool(lockstep)**: `SubAgentSpec.mcp_tools` 이름이 각 MCP 라우터의 **operation_id 와 정확히 일치**해야 바인딩됨 — 미존재 도구는 기동 시 경고 후 제외(서버 확장 시 자동 바인딩). 정적 검증: `scripts/verify_mcp_lockstep.py` (pre-commit `mcp-lockstep` + CI `lockstep` job) — devactivity-service 의 `call_mcp_tool` 리터럴 tool 이름도 같은 기준으로 대조.
   - **instrument (종목·시세)**: `quote_sub`→[`market_quote`,`market_ohlc`,`market_search`,`doc_search_topic_glossary`] · `holdings_sub`→[`portfolio_list_holdings`,`portfolio_list_accounts`,`market_quote`]
   - **financials (재무·공시)**: `financials_sub`→[`disclosure_financials`,`disclosure_company`,`doc_search_topic_earnings`] · `filings_sub`→[`disclosure_list`,`disclosure_detail`,`doc_search_topic_filing`] · `dividend_sub`→[`disclosure_dividend`,`disclosure_major_shareholder`]
   - **risk (리스크·밸류)**: `risk_sub`→[`disclosure_financials`,`market_ohlc`,`doc_search_topic_risk`] · `valuation_sub`→[`disclosure_financials`,`market_index`,`doc_search_topic_valuation`] · `credit_sub`→[`disclosure_financials`,`doc_search_topic_fixed_income`,`doc_search_topic_compliance`]
