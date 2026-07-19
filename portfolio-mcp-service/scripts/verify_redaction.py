@@ -6,6 +6,7 @@
   (2) 기존 :/= KV·하이픈 계좌·16자리 카드 마스킹은 회귀 없이 유지.
   (3) 오탐 금지 — 라벨 뒤 값이 숫자형이 아니면(예: 'account_no is required', '계좌번호 확인 요망')
       건드리지 않는다. 라벨 없는 무관 텍스트(종목명·수량·코드)도 그대로.
+      YYYY-MM-DD 날짜(예: '회사채 2024-05-15 만기')는 bare 계좌 패턴이 오탐하지 않는다.
 
 순수 함수 검사 — DB/LLM/외부 API 불필요. `uv run python scripts/verify_redaction.py` (cwd=서비스 루트).
 """
@@ -43,6 +44,7 @@ def main() -> int:
         "계좌번호 확인 요망",
         "보유수량 300주",
         "삼성전자 005930 보유",
+        "회사채 2024-05-15 만기",  # YYYY-MM-DD 날짜는 계좌가 아니다
     ]
     for c in must_keep:
         if _MASK_MARK in redact_secrets(c):
