@@ -53,7 +53,7 @@ async def search_transactions(
     body: SearchTransactionsIn,
     portfolio_service: PortfolioService = Depends(Provide[Container.portfolio_service]),
 ) -> SearchTransactionsOut:
-    """구조화 조건으로 거래(체결·입출금·배당·수수료) 검색 (필터·시간순 오래된→최신). '무슨 거래/매매/입출금/배당'·'순현금흐름' 류 질문에. amount 는 부호 포함(매수·출금·수수료 음수, 매도·입금·배당 양수), net_amount 는 그 부호합. 미체결 '주문'은 거래가 아니니 portfolio_search_orders 로. since/until 미지정 시 최근 30일. NL 추출·요약 없음."""
+    """구조화 조건으로 거래(체결·입출금·배당·수수료) 검색 (필터·시간순 오래된→최신). '무슨 거래/매매/입출금/배당'·'순현금흐름' 류 질문에. amount 는 부호 포함(매수·출금·수수료 음수, 매도·입금·배당 양수), net_amount_by_currency 는 통화별 부호합 dict. 미체결 '주문'은 거래가 아니니 portfolio_search_orders 로. since/until 미지정 시 최근 30일. NL 추출·요약 없음."""
     result = await portfolio_service.search_transactions(
         account_id=body.account_id,
         tx_type=body.tx_type,
