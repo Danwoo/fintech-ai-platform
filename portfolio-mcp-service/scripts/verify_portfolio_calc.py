@@ -8,6 +8,8 @@
   (3) 계좌 nav == nav_by_currency[base_currency]; 예수금은 기준통화 버킷에 포함.
   (4) 계좌 내 비중(weight) 합은 100 (단일통화 계좌). 빈 계좌는 0으로 나눠 터지지 않는다.
   (5) 정렬은 표시용 절단(YYYY-MM-DD)이 아니라 원본 타임스탬프로 — 같은 날짜의 시:분 순서를 보존.
+      UTC offset 이 섞여도(로컬 +09:00 와 Z 혼재) 파싱된 aware 시각으로 비교해 실제 시간순이고,
+      범위 필터도 파싱값으로 비교해 혼합 offset 행을 누락시키지 않는다.
 
 실제 PortfolioService(mock 데이터)를 그대로 써 검사 — DB/LLM/외부 API 불필요.
 `uv run python scripts/verify_portfolio_calc.py` (cwd=서비스 루트).
@@ -104,6 +106,77 @@ async def run_checks() -> None:
     order = [r["ticker"] for r in st["transactions"]]
     check("tx: 같은 날짜 오름차순은 원본 시각순(EARLY→LATE)", order == ["EARLY", "LATE"])
 
+    # (5) 혼합 UTC offset — 09:00+09:00(=00:00Z) 이 01:00Z 보다 이르다 (lexicographic 정렬이면 역전)
+    mixed_txs = [
+        {
+            "trade_date": "2026-06-03T01:00:00Z",
+            "tx_type": "buy",
+            "ticker": "UTC1",
+            "name": "UTC1",
+            "quantity": 1,
+            "price": 1,
+            "amount": 1,
+            "currency": "KRW",
+        },
+        {
+            "trade_date": "2026-06-03T09:00:00+09:00",
+            "tx_type": "buy",
+            "ticker": "KST9",
+            "name": "KST9",
+            "quantity": 1,
+            "price": 1,
+            "amount": 1,
+            "currency": "KRW",
+        },
+    ]
+    broker.mock_transactions = lambda acc_id: ([dict(t) for t in mixed_txs] if acc_id == "ACC-1001" else [])
+    st = await svc.search_transactions(account_id="ACC-1001", since="2026-06-01", until="2026-06-30")
+    order = [r["ticker"] for r in st["transactions"]]
+    check("tx: 혼합 offset 도 실제 시간순(KST9=00:00Z → UTC1=01:00Z)", order == ["KST9", "UTC1"])
+    check("tx: 혼합 offset 필터 누락 없음(2건 유지)", st["transaction_count"] == 2)
+
+    mixed_orders = [
+        {
+            "order_id": "O1",
+            "ticker": "UTC1",
+            "name": "UTC1",
+            "side": "buy",
+            "order_type": "limit",
+            "status": "filled",
+            "quantity": 1,
+            "filled_quantity": 1,
+            "price": 1,
+            "avg_fill_price": 1,
+            "placed_at": "2026-06-03T01:00:00Z",
+            "currency": "KRW",
+        },
+        {
+            "order_id": "O2",
+            "ticker": "KST9",
+            "name": "KST9",
+            "side": "buy",
+            "order_type": "limit",
+            "status": "filled",
+            "quantity": 1,
+            "filled_quantity": 1,
+            "price": 1,
+            "avg_fill_price": 1,
+            "placed_at": "2026-06-03T09:00:00+09:00",
+            "currency": "KRW",
+        },
+    ]
+    broker.mock_orders = lambda acc_id: ([dict(o) for o in mixed_orders] if acc_id == "ACC-1001" else [])
+    so = await svc.search_orders(account_id="ACC-1001", since="2026-06-01", until="2026-06-30")
+    order = [r["ticker"] for r in so["orders"]]
+    check("orders: 혼합 offset 최신순(UTC1 → KST9)", order == ["UTC1", "KST9"])
+    check("orders: 혼합 offset 필터 누락 없음(2건 유지)", so["order_count"] == 2)
+
+    act = await svc.get_account_activity("ACC-1001", since="2026-06-01", until="2026-06-30")
+    check(
+        "activity: 혼합 offset 최신순 — 최상단이 01:00Z(UTC1) 이벤트",
+        bool(act["events"]) and "UTC1" in act["events"][0]["detail"],
+    )
+
 
 def main() -> int:
     asyncio.run(run_checks())
@@ -112,7 +185,9 @@ def main() -> int:
         for p in problems:
             print(f"  - {p}")
         return 1
-    print("portfolio calc OK — 통화별 집계(혼합 스칼라합 금지)·nav 버킷 일치·비중 합 100·원본 타임스탬프 정렬")
+    print(
+        "portfolio calc OK — 통화별 집계(혼합 스칼라합 금지)·nav 버킷 일치·비중 합 100·원본 타임스탬프 정렬·혼합 offset 시간순"
+    )
     return 0
 
 

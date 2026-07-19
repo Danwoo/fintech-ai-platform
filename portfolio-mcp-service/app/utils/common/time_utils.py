@@ -58,3 +58,11 @@ def parse_iso_to_kst_naive(s: str | None) -> datetime | None:
     """ISO 문자열을 KST naive datetime 으로. Z suffix 처리, naive 입력은 UTC 가정, 파싱 실패/None 은 None."""
     dt = parse_iso_to_kst(s)
     return dt.replace(tzinfo=None) if dt else None
+
+
+_TS_MIN = datetime.min.replace(tzinfo=UTC)
+
+
+def iso_sort_key(s: str | None) -> datetime:
+    """ISO 문자열 → aware 정렬 키. offset 이 섞여도 실제 시간순이 되게 파싱값으로 비교한다. 파싱 불가·None 은 최소값."""
+    return parse_iso_to_kst(s) or _TS_MIN
