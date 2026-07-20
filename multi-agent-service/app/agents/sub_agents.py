@@ -8,7 +8,7 @@
 
 도구는 MultiServerMCPClient 가 모든 MCP 서버에서 수집한 tool 목록을
 SubAgentSpec.mcp_tools 이름으로 필터해 분배한다 — 미존재 도구는 경고 후 제외
-(doc-search POC 미구현 tool 등은 서버 확장 시 자동 바인딩).
+(서버 확장 시 자동 바인딩).
 """
 
 from __future__ import annotations

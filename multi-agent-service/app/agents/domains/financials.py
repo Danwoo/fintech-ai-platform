@@ -1,7 +1,7 @@
 """Financials 도메인 정의 — financials_sub, filings_sub, dividend_sub.
 
 mcp_tools 이름은 각 MCP 서비스 라우터의 operation_id (FastMCP tool 이름의 SoT)와 일치해야 한다.
-doc_search_* 중 POC(일부 topic) 외 항목은 doc-search-mcp-service 확장 시 자동 바인딩된다.
+미존재 이름은 경고 후 제외되고, MCP 서버 확장 시 자동 바인딩된다.
 """
 
 from __future__ import annotations
