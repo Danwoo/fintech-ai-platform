@@ -117,7 +117,9 @@ class NewsClient:
         num_of_rows: int = 10,
     ) -> dict:
         if self.use_real_api:
-            raw = await self._get("search", {"q": keyword, "category": category, "page": page_no, "pageSize": num_of_rows})
+            raw = await self._get(
+                "search", {"q": keyword, "category": category, "page": page_no, "pageSize": num_of_rows}
+            )
             return self._wrap_vendor(raw)
         items = fx.all_articles()
         if keyword:
@@ -137,7 +139,14 @@ class NewsClient:
     ) -> dict:
         if self.use_real_api:
             raw = await self._get(
-                "company", {"ticker": ticker, "name": company_name, "category": category, "page": page_no, "pageSize": num_of_rows}
+                "company",
+                {
+                    "ticker": ticker,
+                    "name": company_name,
+                    "category": category,
+                    "page": page_no,
+                    "pageSize": num_of_rows,
+                },
             )
             return self._wrap_vendor(raw)
         tk = fx.resolve_ticker(ticker, company_name)
@@ -212,7 +221,13 @@ class NewsClient:
         if self.use_real_api:
             raw = await self._get(
                 "disclosure",
-                {"ticker": ticker, "name": company_name, "type": disclosure_type, "page": page_no, "pageSize": num_of_rows},
+                {
+                    "ticker": ticker,
+                    "name": company_name,
+                    "type": disclosure_type,
+                    "page": page_no,
+                    "pageSize": num_of_rows,
+                },
             )
             return self._wrap_vendor(raw)
         tk = fx.resolve_ticker(ticker, company_name)

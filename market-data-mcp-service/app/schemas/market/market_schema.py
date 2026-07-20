@@ -14,9 +14,7 @@ class MarketOhlcIn(BaseModel):
 
 
 class MarketIndexIn(BaseModel):
-    index_code: str = Field(
-        description="지수 코드 (예: 'KOSPI', 'KOSDAQ', 'SPX', 'IXIC') — 시장 대표 지수 현재값"
-    )
+    index_code: str = Field(description="지수 코드 (예: 'KOSPI', 'KOSDAQ', 'SPX', 'IXIC') — 시장 대표 지수 현재값")
 
 
 class MarketFxIn(BaseModel):

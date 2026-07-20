@@ -17,7 +17,9 @@ class CompanySearchIn(BaseModel):
 
 
 class FinancialsIn(BaseModel):
-    corp: str = Field(description="회사명 또는 종목코드(6자리). 정확한 발행사 식별이 어려우면 disclosure_company 로 먼저 조회")
+    corp: str = Field(
+        description="회사명 또는 종목코드(6자리). 정확한 발행사 식별이 어려우면 disclosure_company 로 먼저 조회"
+    )
     year: int = Field(default=2024, ge=2015, le=2025, description="사업연도 (4자리, 예: 2024)")
     report_code: ReportCode = Field(
         default="11011",
@@ -59,9 +61,7 @@ class MajorShareholderIn(BaseModel):
 
 class DisclosureSearchOut(BaseModel):
     data: list[dict] = Field(default_factory=list, description="조회 결과 목록")
-    total_count: int = Field(
-        default=0, description="전체 결과 수 (data 건수보다 크면 페이지네이션으로 추가 조회 가능)"
-    )
+    total_count: int = Field(default=0, description="전체 결과 수 (data 건수보다 크면 페이지네이션으로 추가 조회 가능)")
     source: Literal["mock", "real"] = Field(
         default="mock", description="데이터 출처. mock=내장 샘플, real=DART OpenAPI"
     )

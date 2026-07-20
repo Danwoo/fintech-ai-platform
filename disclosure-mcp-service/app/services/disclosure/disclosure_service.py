@@ -31,9 +31,7 @@ class DisclosureService:
 
     async def list_disclosures(self, params: DisclosureListIn) -> DisclosureSearchOut:
         # 단계적 조회: 요청 조건 → 0건이면 유형·기간 한정을 풀어(전체 유형·기간 무제한) 재시도
-        relaxed = params.model_copy(
-            update={"disclosure_type": "ALL", "start_date": None, "end_date": None}
-        )
+        relaxed = params.model_copy(update={"disclosure_type": "ALL", "start_date": None, "end_date": None})
         stages = [lambda: self.disclosure_repo.list_disclosures(params)]
         if relaxed.model_dump() != params.model_dump():
             stages.append(lambda: self.disclosure_repo.list_disclosures(relaxed))

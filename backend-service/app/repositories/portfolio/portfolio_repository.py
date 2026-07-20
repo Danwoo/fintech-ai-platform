@@ -259,9 +259,7 @@ class PortfolioRepository:
                 conn.execute(text(sql), args)
 
     def delete_holding(self, args: dict) -> None:
-        sql_holding = (
-            "DELETE FROM TN_Holding WHERE portfolio_id = :portfolio_id AND ticker = :ticker AND company_id = :company_id"
-        )
+        sql_holding = "DELETE FROM TN_Holding WHERE portfolio_id = :portfolio_id AND ticker = :ticker AND company_id = :company_id"
         with self.sql_client.connect() as conn:
             with conn.begin():
                 conn.execute(text(sql_holding), args)

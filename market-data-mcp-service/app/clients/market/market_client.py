@@ -94,18 +94,82 @@ _MOCK_QUOTES: dict[str, dict] = {
 
 # 지수 대표값 MOCK
 _MOCK_INDEX: dict[str, dict] = {
-    "KOSPI": {"index_code": "KOSPI", "name": "코스피", "market": "KR", "value": 2745.32, "change": 12.81, "change_pct": 0.47, "asof": "2026-06-30T15:30:00+09:00"},
-    "KOSDAQ": {"index_code": "KOSDAQ", "name": "코스닥", "market": "KR", "value": 842.16, "change": -3.42, "change_pct": -0.40, "asof": "2026-06-30T15:30:00+09:00"},
-    "SPX": {"index_code": "SPX", "name": "S&P 500", "market": "US", "value": 5460.48, "change": 18.32, "change_pct": 0.34, "asof": "2026-06-29T16:00:00-04:00"},
-    "IXIC": {"index_code": "IXIC", "name": "NASDAQ Composite", "market": "US", "value": 17732.60, "change": -42.10, "change_pct": -0.24, "asof": "2026-06-29T16:00:00-04:00"},
+    "KOSPI": {
+        "index_code": "KOSPI",
+        "name": "코스피",
+        "market": "KR",
+        "value": 2745.32,
+        "change": 12.81,
+        "change_pct": 0.47,
+        "asof": "2026-06-30T15:30:00+09:00",
+    },
+    "KOSDAQ": {
+        "index_code": "KOSDAQ",
+        "name": "코스닥",
+        "market": "KR",
+        "value": 842.16,
+        "change": -3.42,
+        "change_pct": -0.40,
+        "asof": "2026-06-30T15:30:00+09:00",
+    },
+    "SPX": {
+        "index_code": "SPX",
+        "name": "S&P 500",
+        "market": "US",
+        "value": 5460.48,
+        "change": 18.32,
+        "change_pct": 0.34,
+        "asof": "2026-06-29T16:00:00-04:00",
+    },
+    "IXIC": {
+        "index_code": "IXIC",
+        "name": "NASDAQ Composite",
+        "market": "US",
+        "value": 17732.60,
+        "change": -42.10,
+        "change_pct": -0.24,
+        "asof": "2026-06-29T16:00:00-04:00",
+    },
 }
 
 # 환율 MOCK (1 base 단위당 quote 통화 가격)
 _MOCK_FX: dict[str, dict] = {
-    "USD/KRW": {"pair": "USD/KRW", "base": "USD", "quote": "KRW", "rate": 1382.40, "change": 4.20, "change_pct": 0.30, "asof": "2026-06-30T15:30:00+09:00"},
-    "EUR/KRW": {"pair": "EUR/KRW", "base": "EUR", "quote": "KRW", "rate": 1481.05, "change": -2.10, "change_pct": -0.14, "asof": "2026-06-30T15:30:00+09:00"},
-    "JPY/KRW": {"pair": "JPY/KRW", "base": "JPY", "quote": "KRW", "rate": 8.61, "change": 0.03, "change_pct": 0.35, "asof": "2026-06-30T15:30:00+09:00"},
-    "USD/JPY": {"pair": "USD/JPY", "base": "USD", "quote": "JPY", "rate": 160.55, "change": 0.42, "change_pct": 0.26, "asof": "2026-06-30T15:30:00+09:00"},
+    "USD/KRW": {
+        "pair": "USD/KRW",
+        "base": "USD",
+        "quote": "KRW",
+        "rate": 1382.40,
+        "change": 4.20,
+        "change_pct": 0.30,
+        "asof": "2026-06-30T15:30:00+09:00",
+    },
+    "EUR/KRW": {
+        "pair": "EUR/KRW",
+        "base": "EUR",
+        "quote": "KRW",
+        "rate": 1481.05,
+        "change": -2.10,
+        "change_pct": -0.14,
+        "asof": "2026-06-30T15:30:00+09:00",
+    },
+    "JPY/KRW": {
+        "pair": "JPY/KRW",
+        "base": "JPY",
+        "quote": "KRW",
+        "rate": 8.61,
+        "change": 0.03,
+        "change_pct": 0.35,
+        "asof": "2026-06-30T15:30:00+09:00",
+    },
+    "USD/JPY": {
+        "pair": "USD/JPY",
+        "base": "USD",
+        "quote": "JPY",
+        "rate": 160.55,
+        "change": 0.42,
+        "change_pct": 0.26,
+        "asof": "2026-06-30T15:30:00+09:00",
+    },
 }
 
 
