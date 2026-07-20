@@ -9,10 +9,13 @@ verify_access_token 이 요청 진입 시 set 하고, service/permission 계층�
 
 from contextvars import ContextVar
 
+from core.exceptions import UnauthorizedError
+
 _user_id: ContextVar[str | None] = ContextVar("auth_user_id", default=None)
 _email: ContextVar[str | None] = ContextVar("auth_email", default=None)
 _role: ContextVar[str | None] = ContextVar("auth_role", default=None)
 _company_id: ContextVar[int | None] = ContextVar("auth_company_id", default=None)
+_is_service: ContextVar[bool] = ContextVar("auth_is_service", default=False)
 
 
 def set_auth_context(
@@ -21,11 +24,13 @@ def set_auth_context(
     role: str | None,
     company_id: int | None,
     email: str | None = None,
+    is_service: bool = False,
 ) -> None:
     _user_id.set(user_id)
     _email.set(email)
     _role.set(role)
     _company_id.set(company_id)
+    _is_service.set(is_service)
 
 
 def get_user_id() -> str | None:
@@ -42,3 +47,15 @@ def get_role() -> str | None:
 
 def get_company_id() -> int | None:
     return _company_id.get()
+
+
+def is_service_token() -> bool:
+    return _is_service.get()
+
+
+def require_company_id() -> int:
+    """테넌트 격리 쿼리용 company_id 를 fail-closed 로 반환 (미설정=요청 밖/서비스 토큰 → 401)."""
+    company_id = _company_id.get()
+    if company_id is None:
+        raise UnauthorizedError()
+    return company_id
