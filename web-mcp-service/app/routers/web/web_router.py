@@ -21,7 +21,10 @@ router = APIRouter(prefix="/web", dependencies=[Depends(verify_access_token)])
                 "질문": "2024 반도체 업황 전망 상세 검색 10개",
                 "호출": {"query": "2024 반도체 업황 전망", "search_depth": "advanced", "max_results": 10},
             },
-            {"질문": "미국 연준 기준금리 인하 최신 뉴스 8개", "호출": {"query": "미국 연준 기준금리 인하", "max_results": 8}},
+            {
+                "질문": "미국 연준 기준금리 인하 최신 뉴스 8개",
+                "호출": {"query": "미국 연준 기준금리 인하", "max_results": 8},
+            },
             {
                 "질문": "2차전지 섹터 수급과 전기차 수요 동향, 수급은 심층 검색",
                 "호출": {"query": "2차전지 섹터 수급", "search_depth": "advanced", "max_results": 5},

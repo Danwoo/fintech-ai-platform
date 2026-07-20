@@ -86,9 +86,7 @@ class CorpCodeIndex:
         if not q:
             return list(self._companies)
         return [
-            c
-            for c in self._companies
-            if q in c["corp_name"].lower() or q == c.get("stock_code") or q == c["corp_code"]
+            c for c in self._companies if q in c["corp_name"].lower() or q == c.get("stock_code") or q == c["corp_code"]
         ]
 
 
@@ -113,9 +111,7 @@ class DisclosureClient:
 
     async def _fetch_corp_code_zip(self) -> bytes:
         """DART corpCode.xml(zip) 바이트 — 전체 발행사 고유번호 사전."""
-        resp = await self._http().get(
-            f"{self.base_url}/corpCode.xml", params={"crtfc_key": self._api_key}
-        )
+        resp = await self._http().get(f"{self.base_url}/corpCode.xml", params={"crtfc_key": self._api_key})
         resp.raise_for_status()
         return resp.content
 
@@ -232,9 +228,7 @@ class DisclosureClient:
         if len(date) != 8 or not date.isdigit():
             return None
         for page_no in range(1, 11):  # 최대 10페이지(×100) 로 탐색 범위 제한
-            raw = await self._get(
-                "list", {"bgn_de": date, "end_de": date, "page_no": page_no, "page_count": 100}
-            )
+            raw = await self._get("list", {"bgn_de": date, "end_de": date, "page_no": page_no, "page_count": 100})
             rows = raw.get("data", [])
             match = next((r for r in rows if r.get("rcept_no") == rcept_no), None)
             if match:

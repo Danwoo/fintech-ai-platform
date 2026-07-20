@@ -89,5 +89,7 @@ async def get_account_activity(
     portfolio_service: PortfolioService = Depends(Provide[Container.portfolio_service]),
 ) -> AccountActivityOut:
     """특정 한 계좌(account_id 정확일치)의 활동 이벤트 (체결·주문·입출금·배당 통합, 최신순, 최대 250건). 계좌 단위 '최근에 무슨 일 있었어' 류에 쓴다 — 계좌가 특정 안 되면 먼저 portfolio_list_accounts 로 account_id 확정. account_id 미존재 시 found=false 로 반환 — '활동 0건'과 구분. detail 의 계좌번호 등 식별자는 마스킹된 상태."""
-    result = await portfolio_service.get_account_activity(account_id=body.account_id, since=body.since, until=body.until)
+    result = await portfolio_service.get_account_activity(
+        account_id=body.account_id, since=body.since, until=body.until
+    )
     return AccountActivityOut(**result)
