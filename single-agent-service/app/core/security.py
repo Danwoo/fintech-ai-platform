@@ -32,20 +32,22 @@ async def verify_access_token(
     token: str | None = Security(APIKeyHeader(name=HEADER_KEY, auto_error=False)),
 ) -> None:
     """FastAPI Depends 인증. 일반 요청은 Authorization 헤더에서, MCP tool 호출은 McpHeaderMiddleware 가 scope 에 주입한 헤더에서 토큰을 읽는다."""
-    jwt_token = token or request.headers.get("Authorization") or request.query_params.get("token")
+    jwt_token = token or request.headers.get("Authorization")
     try:
         payload = _decode_jwt_token(jwt_token)
-        set_auth_context(
-            user_id=payload["sub"],
-            email=payload.get("email"),
-            role=payload.get("role"),
-            company_id=payload.get("company_id"),
-        )
     except (jwt.PyJWTError, ValueError):
-        if settings.APP_ENV == "development":
+        if settings.AUTH_DEV_BYPASS:
             set_auth_context(user_id="dev_user", email=None, role="admin", company_id=None)
             return
         raise UnauthorizedError() from None
+
+    set_auth_context(
+        user_id=payload["sub"],
+        email=payload.get("email"),
+        role=payload.get("role"),
+        company_id=payload.get("company_id"),
+        is_service=payload.get("typ") == "service",
+    )
 
 
 def verify_websocket_token(token: str | None) -> dict[str, Any]:
@@ -53,9 +55,9 @@ def verify_websocket_token(token: str | None) -> dict[str, Any]:
     try:
         return _decode_jwt_token(token)
     except (jwt.PyJWTError, ValueError):
-        if settings.APP_ENV == "development":
+        if settings.AUTH_DEV_BYPASS:
             return {"sub": "dev_user", "role": "admin", "company_id": None}
-        return {}
+        raise UnauthorizedError() from None
 
 
 def create_access_token() -> str:
@@ -67,6 +69,7 @@ def create_access_token() -> str:
     now = datetime.now(UTC)
     payload = {
         "sub": settings.SERVICE_NAME,
+        "typ": "service",
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(minutes=1)).timestamp()),
     }
