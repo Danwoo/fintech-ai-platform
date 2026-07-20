@@ -9,8 +9,9 @@
   (3) 오탐 금지 — 라벨 뒤 값이 숫자형이 아니면(예: 'account_no is required', '계좌번호 확인 요망')
       건드리지 않는다. 라벨 없는 무관 텍스트(종목명·수량·코드)도 그대로.
       YYYY-MM-DD 날짜(예: '회사채 2024-05-15 만기')는 bare 계좌 패턴이 오탐하지 않는다.
-  (4) 값 뒤에 이어지는 무관한 날짜·수치는 보존된다 (#37 "날짜·금액은 기능 데이터" 계약).
-      개행 너머 다음 줄의 선두 숫자도 삼키지 않는다.
+  (4) 값 뒤에 이어지는 무관한 티커·수량·금액·날짜는 보존된다 (#37 "날짜·금액은 기능 데이터" 계약).
+      개행 너머 다음 줄의 선두 숫자도, 같은 줄의 다음 토큰도 삼키지 않는다.
+  (5) 긴 공백 런 입력에서 백트래킹이 폭주하지 않는다 (ReDoS).
 
 순수 함수 검사 — DB/LLM/외부 API 불필요. `uv run python scripts/verify_redaction.py` (cwd=서비스 루트).
 """
@@ -18,6 +19,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
@@ -78,18 +80,37 @@ def main() -> int:
         ("account_no: 5012012345678 2024-05-15 만기", "2024-05-15 만기"),
         ("계좌번호: 5012012345678\n2024-05-15 개설", "2024-05-15 개설"),
         ("계좌번호: 5012012345678\n300 잔고", "300 잔고"),
+        # 같은 줄에 이어지는 티커·수량·금액·점 구분 날짜 — 잘린 잔해도 남기지 않는다
+        ("계좌번호 5012-01-2345678 005930 삼성전자 300주 매수", "005930 삼성전자 300주 매수"),
+        ("계좌번호: 5012012345678 300주 보유", "300주 보유"),
+        ("account_no: 5012012345678 1,000,000원", "1,000,000원"),
+        ("계좌번호: 5012012345678 2024.05.15 만기", "2024.05.15 만기"),
     ]
     for c, kept in must_preserve:
         out = redact_secrets(c)
         if kept not in out:
             problems.append(f"과잉 흡수(기능 데이터 파괴): {c!r} → {out!r}")
 
+    # (5) 백트래킹 폭주 방지 — 긴 공백 런에서 라벨 뒤 조건이 실패해도 선형이어야 한다.
+    #     공백을 2배로 늘렸을 때 시간이 4배로 뛰면(2차식) 폭주.
+    small = "계좌번호" + " " * 10000 + "5"
+    large = "계좌번호" + " " * 40000 + "5"
+    elapsed = []
+    for probe in (small, large):
+        started = time.perf_counter()
+        redact_secrets(probe)
+        elapsed.append(time.perf_counter() - started)
+    if elapsed[1] > elapsed[0] * 8:
+        problems.append(f"백트래킹 폭주: 공백 10000자 {elapsed[0] * 1000:.1f}ms → 40000자 {elapsed[1] * 1000:.1f}ms")
+
     if problems:
         print("redaction 위반:")
         for p in problems:
             print(f"  - {p}")
         return 1
-    print("redaction OK — 라벨+값 전체 마스킹(꼬리 누출 없음) · bare 부분 마스킹 · 오탐 없음 · 값 뒤 날짜·수치 보존")
+    print(
+        "redaction OK — 라벨+값 전체 마스킹(꼬리 누출 없음) · bare 부분 마스킹 · 오탐 없음 · 값 뒤 토큰 보존 · 백트래킹 선형"
+    )
     return 0
 
 
