@@ -1,0 +1,56 @@
+# board-status — 보드 Status 를 작업 흐름의 실제 신호에 물린다 (하네스 진단 갭 10)
+#
+#   소유자 '승인' 코멘트 (이슈)   → 그 이슈를 In Progress 로  (승인 = 디스패치 직전)
+#   PR 열림 / draft 해제          → PR 이 Closes 로 참조하는 이슈들을 In Review 로
+#   닫힘·머지 → Done              → 내장 자동화가 담당 (이 파일 범위 밖)
+#
+# 전제: PROJECT_TOKEN 시크릿 (PAT, project 스코프). 기본 GITHUB_TOKEN 은 사용자 소유
+#       Projects v2 를 조작할 수 없다. 시크릿 미설정·만료 시 조용히 건너뛴다 (fail-open —
+#       보드는 관제 보조 장치라 코드·라벨 흐름을 막으면 안 된다).
+# 배포: 대상 레포 .github/workflows/ 에 복사하고, env 의 프로젝트·필드·옵션 id 를
+#       그 레포 보드의 실측값으로 교체한다 (gh project field-list 로 확인).
+
+name: board-status
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request:
+    types: [opened, ready_for_review]
+
+permissions: {}          # 기본 토큰 미사용 — PROJECT_TOKEN 만 쓴다
+
+env:
+  PROJECT_ID: PVT_kwHOBKkbCc4BdVSU
+  STATUS_FIELD_ID: PVTSSF_lAHOBKkbCc4BdVSUzhX3kI0
+  IN_PROGRESS_ID: 3ac687e2
+  IN_REVIEW_ID: ef1417e7
+
+jobs:
+  approve-to-in-progress:
+    if: ${{ github.event_name == 'issue_comment' && !github.event.issue.pull_request && github.event.comment.author_association == 'OWNER' && startsWith(github.event.comment.body, '승인') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Move issue to In Progress
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          ISSUE_NODE: ${{ github.event.issue.node_id }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then echo "PROJECT_TOKEN 미설정 — 건너뜀"; exit 0; fi
+          ITEM=$(gh api graphql -f query='query($id:ID!){ node(id:$id){ ... on Issue { projectItems(first:10){ nodes { id project { id } } } } } }' -f id="$ISSUE_NODE" --jq ".data.node.projectItems.nodes[] | select(.project.id==\"$PROJECT_ID\") | .id")
+          if [ -z "$ITEM" ]; then echo "보드 아이템 없음 — 건너뜀"; exit 0; fi
+          gh api graphql -f query='mutation($p:ID!,$i:ID!,$f:ID!,$o:String!){ updateProjectV2ItemFieldValue(input:{projectId:$p,itemId:$i,fieldId:$f,value:{singleSelectOptionId:$o}}){ projectV2Item { id } } }' -f p="$PROJECT_ID" -f i="$ITEM" -f f="$STATUS_FIELD_ID" -f o="$IN_PROGRESS_ID"
+
+  pr-to-in-review:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Move linked issues to In Review
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          PR_NODE: ${{ github.event.pull_request.node_id }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then echo "PROJECT_TOKEN 미설정 — 건너뜀"; exit 0; fi
+          for ITEM in $(gh api graphql -f query='query($id:ID!){ node(id:$id){ ... on PullRequest { closingIssuesReferences(first:10){ nodes { projectItems(first:10){ nodes { id project { id } } } } } } } }' -f id="$PR_NODE" --jq ".data.node.closingIssuesReferences.nodes[].projectItems.nodes[] | select(.project.id==\"$PROJECT_ID\") | .id"); do
+            gh api graphql -f query='mutation($p:ID!,$i:ID!,$f:ID!,$o:String!){ updateProjectV2ItemFieldValue(input:{projectId:$p,itemId:$i,fieldId:$f,value:{singleSelectOptionId:$o}}){ projectV2Item { id } } }' -f p="$PROJECT_ID" -f i="$ITEM" -f f="$STATUS_FIELD_ID" -f o="$IN_REVIEW_ID"
+          done
