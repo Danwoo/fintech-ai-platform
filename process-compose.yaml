@@ -4,6 +4,8 @@ processes:
       PORT: 8000
     command: "fuser -k {{.PORT}}/tcp 2>/dev/null; uv run python -m uvicorn main:app --reload --host 0.0.0.0 --port {{.PORT}}"
     working_dir: "backend-service/app"
+    environment:
+      - "APP_ENV=development"
     availability:
       restart: "on_failure"
 
@@ -12,6 +14,8 @@ processes:
       PORT: 8001
     command: "fuser -k {{.PORT}}/tcp 2>/dev/null; uv run python -m uvicorn main:app --reload --host 0.0.0.0 --port {{.PORT}}"
     working_dir: "devactivity-service/app"
+    environment:
+      - "APP_ENV=development"
     availability:
       restart: "on_failure"
 
@@ -20,6 +24,8 @@ processes:
       PORT: 8100
     command: "fuser -k {{.PORT}}/tcp 2>/dev/null; uv run python -m uvicorn main:app --reload --host 0.0.0.0 --port {{.PORT}}"
     working_dir: "file-service/app"
+    environment:
+      - "APP_ENV=development"
     availability:
       restart: "on_failure"
 
@@ -28,6 +34,8 @@ processes:
       PORT: 8002
     command: "fuser -k {{.PORT}}/tcp 2>/dev/null; uv run python -m uvicorn main:app --reload --host 0.0.0.0 --port {{.PORT}}"
     working_dir: "portfolio-mcp-service/app"
+    environment:
+      - "APP_ENV=development"
     availability:
       restart: "on_failure"
 
@@ -36,6 +44,8 @@ processes:
       PORT: 8003
     command: "fuser -k {{.PORT}}/tcp 2>/dev/null; uv run python -m uvicorn main:app --reload --host 0.0.0.0 --port {{.PORT}}"
     working_dir: "multi-agent-service/app"
+    environment:
+      - "APP_ENV=development"
     availability:
       restart: "on_failure"
 
@@ -44,6 +54,8 @@ processes:
       PORT: 8004
     command: "fuser -k {{.PORT}}/tcp 2>/dev/null; uv run python -m uvicorn main:app --reload --host 0.0.0.0 --port {{.PORT}}"
     working_dir: "market-data-mcp-service/app"
+    environment:
+      - "APP_ENV=development"
     availability:
       restart: "on_failure"
 
@@ -52,6 +64,8 @@ processes:
       PORT: 8005
     command: "fuser -k {{.PORT}}/tcp 2>/dev/null; uv run python -m uvicorn main:app --reload --host 0.0.0.0 --port {{.PORT}}"
     working_dir: "disclosure-mcp-service/app"
+    environment:
+      - "APP_ENV=development"
     availability:
       restart: "on_failure"
 
@@ -60,6 +74,8 @@ processes:
       PORT: 8006
     command: "fuser -k {{.PORT}}/tcp 2>/dev/null; uv run python -m uvicorn main:app --reload --host 0.0.0.0 --port {{.PORT}}"
     working_dir: "news-mcp-service/app"
+    environment:
+      - "APP_ENV=development"
     availability:
       restart: "on_failure"
 
@@ -68,6 +84,8 @@ processes:
       PORT: 8007
     command: "fuser -k {{.PORT}}/tcp 2>/dev/null; uv run python -m uvicorn main:app --reload --host 0.0.0.0 --port {{.PORT}}"
     working_dir: "web-mcp-service/app"
+    environment:
+      - "APP_ENV=development"
     availability:
       restart: "on_failure"
 
@@ -76,6 +94,8 @@ processes:
       PORT: 8008
     command: "fuser -k {{.PORT}}/tcp 2>/dev/null; uv run python -m uvicorn main:app --reload --host 0.0.0.0 --port {{.PORT}}"
     working_dir: "doc-search-mcp-service/app"
+    environment:
+      - "APP_ENV=development"
     availability:
       restart: "on_failure"
 

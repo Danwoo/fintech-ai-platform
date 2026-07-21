@@ -41,7 +41,7 @@ flowchart LR
 
 ```bash
 uv sync
-cd app && uv run uvicorn main:app --reload   # http://0.0.0.0:8004  (MCP: /mcp, REST: /market/*)
+cd app && APP_ENV=development uv run uvicorn main:app --reload   # http://0.0.0.0:8004  (MCP: /mcp, REST: /market/*)
 ```
 
 키 없이 바로 동작한다 (기본 `USE_REAL_API=false` → 인메모리 MOCK). `.env.example` 키 (실제 env 는 `.env.development` / `.env.staging` / `.env.production`):

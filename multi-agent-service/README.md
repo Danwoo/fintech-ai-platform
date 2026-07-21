@@ -52,7 +52,7 @@ flowchart TD
 ```bash
 uv sync
 cd app && cp .env.example .env.development   # 키 채우기 (CHANGE_ME)
-cd app && uv run uvicorn main:app --reload    # http://localhost:8003
+cd app && APP_ENV=development uv run uvicorn main:app --reload    # http://localhost:8003
 ```
 
 필수 `.env` 키 (`app/.env.example`):

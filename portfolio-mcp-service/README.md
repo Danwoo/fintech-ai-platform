@@ -49,7 +49,7 @@ flowchart LR
 
 ```bash
 uv sync
-cd app && uv run uvicorn main:app --reload   # :8002  (REST /portfolio/*, MCP /mcp)
+cd app && APP_ENV=development uv run uvicorn main:app --reload   # :8002  (REST /portfolio/*, MCP /mcp)
 ```
 
 API 키 없이 바로 동작한다(기본 MOCK). 실 브로커리지 API 는 `app/.env.example` → `.env.development` 복사 후 설정:

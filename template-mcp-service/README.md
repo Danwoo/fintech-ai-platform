@@ -40,7 +40,7 @@
 ## 실행
 
 ```bash
-cd template-mcp-service/app && uv run uvicorn main:app --reload --port 8009   # --workers=1 전제
+cd template-mcp-service/app && APP_ENV=development uv run uvicorn main:app --reload --port 8009   # --workers=1 전제
 
 # 서비스 JWT 발급 (JWT_SECRET 은 .env.* 와 동일값)
 TOKEN=$(uv run python -c "import jwt,time; print(jwt.encode({'sub':'verify','exp':int(time.time())+300}, 'CHANGE_ME', algorithm='HS256'))")

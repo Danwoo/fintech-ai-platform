@@ -43,7 +43,7 @@ flowchart LR
 ```bash
 uv sync
 cp app/.env.example app/.env.development   # 값 채우기 (CHANGE_ME)
-cd app && uv run uvicorn main:app --reload  # :8100, root_path=/file-service
+cd app && APP_ENV=development uv run uvicorn main:app --reload  # :8100, root_path=/file-service
 ```
 
 필요한 `.env` 키: `FILE_SQL_DB_*`(전용 메타 DB), `SFTP_HOST/PORT/USERNAME/PASSWORD/SFTP_BASE_PATH`, `JWT_SECRET`(frontend·backend 동일값 필수). 스키마는 마이그레이션 없이 push 방식(`alembic/`).

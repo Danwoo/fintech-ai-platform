@@ -44,7 +44,7 @@ flowchart LR
 ```bash
 uv sync --locked                          # 의존성 설치
 cp app/.env.example app/.env.development   # 환경 파일 작성 (CHANGE_ME 채우기)
-cd app && uv run uvicorn main:app --reload --port 8007
+cd app && APP_ENV=development uv run uvicorn main:app --reload --port 8007
 ```
 
 - 포트 **8007** — MCP `:8007/mcp`, REST `:8007/web/search`, 스키마 `:8007/openapi.json`

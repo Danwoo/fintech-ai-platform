@@ -534,7 +534,7 @@ asyncio.run(main())
 
 ```bash
 # ③ multi-agent 바인딩 확인 — 기동 로그 (§11)
-cd multi-agent-service/app && uv run uvicorn main:app --port 8003 2>&1 \
+cd multi-agent-service/app && APP_ENV=development uv run uvicorn main:app --port 8003 2>&1 \
   | grep -E "MCP tools 수집|도구 없음|sub_agents.*생성"
 ```
 

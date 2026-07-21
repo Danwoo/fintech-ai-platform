@@ -60,10 +60,11 @@ flowchart TD
 ## 빠른 실행
 
 ```bash
-# 1) 프론트 env 준비 (JWT_SECRET 은 frontend·backend 동일값 필수 — CHANGE_ME 교체)
-cp frontend/.env.example frontend/.env
+# 1) env 준비 — 프론트는 .env.development, 각 backend 는 app/.env.development (JWT_SECRET 은 frontend·backend 동일값 필수 — CHANGE_ME 교체)
+cp frontend/.env.example frontend/.env.development
+# backend 별: cp <backend>/app/.env.example <backend>/app/.env.development
 
-# 2) dev — 멀티서비스 일괄 기동. MCP 는 MOCK 금융 데이터로 키 없이 바로 뜬다
+# 2) dev — 멀티서비스 일괄 기동 (process-compose 가 APP_ENV=development 주입). MCP 는 MOCK 금융 데이터로 키 없이 바로 뜬다
 process-compose up
 
 # 3) 프론트 스키마 → DB push

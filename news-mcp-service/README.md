@@ -42,7 +42,7 @@ flowchart LR
 
 ```bash
 uv sync
-cd app && uv run uvicorn main:app --reload   # :8006, /mcp + /news/* + /openapi.json — 무키 목업으로 즉시 기동
+cd app && APP_ENV=development uv run uvicorn main:app --reload   # :8006, /mcp + /news/* + /openapi.json — 무키 목업으로 즉시 기동
 ```
 
 `app/.env.example` 의 키:

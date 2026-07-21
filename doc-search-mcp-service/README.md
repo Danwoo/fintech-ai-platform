@@ -54,7 +54,7 @@ flowchart LR
 
 ```bash
 uv sync
-cd app && uv run uvicorn main:app --reload   # http://0.0.0.0:8008  (MCP: /mcp, OpenAPI: /openapi.json)
+cd app && APP_ENV=development uv run uvicorn main:app --reload   # http://0.0.0.0:8008  (MCP: /mcp, OpenAPI: /openapi.json)
 ```
 
 `USE_REAL_API=false`(기본)면 `.env` 없이도 MOCK 금융 문서로 바로 동작한다. 실 인프라를 붙이려면 `app/.env.example` → `.env.development` 복사 후 `USE_REAL_API=true` 와 `MILVUS_DB_*`(벡터DB) · `REDIS_DB_*`(BM25 모델) · `OPENAI_EMBEDDING_*`/`OPENAI_RERANKER_*`(bge-m3 / bge-reranker-v2-m3) · `JWT_SECRET`(MCP·REST 공통, frontend·타 backend 와 동일값) 을 채운다 (모든 비밀값은 `CHANGE_ME` placeholder).
