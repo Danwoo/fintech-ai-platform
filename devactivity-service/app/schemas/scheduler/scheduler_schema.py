@@ -1,6 +1,7 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from apscheduler.triggers.cron import CronTrigger
+from pydantic import BaseModel, Field, field_validator
 from schemas.common_schema import CommonEntity, TrimmedBaseModel
 
 
@@ -12,6 +13,16 @@ class Scheduler(TrimmedBaseModel):
     period_weeks: Literal[1, 2, 4] = Field(default=1)  # 1=주간 2=격주 4=월간 (집계기간·N주마다 발송)
     use_at: str = Field(default="N", max_length=5)  # Y=활성(잡 등록)
     description: str | None = Field(None, max_length=1000)
+
+    @field_validator("day_of_week")
+    @classmethod
+    def validate_day_of_week(cls, v: str) -> str:
+        # 매니저가 쓰는 CronTrigger 를 SoT 로 재사용 — 검증기·실사용 포맷 lockstep
+        try:
+            CronTrigger(day_of_week=v)
+        except ValueError as e:
+            raise ValueError("day_of_week 형식이 올바르지 않습니다. (예: mon, mon-fri, mon,wed,fri, *)") from e
+        return v
 
 
 class SchedulerOut(Scheduler, CommonEntity):
