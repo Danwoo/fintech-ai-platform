@@ -84,10 +84,16 @@ def filter_condition(field, op, param_name, value=None) -> str:
         return f"{field} = :{param_name}" if value is not None else f"{field} IS NULL"
     elif op in ("<>", "!="):
         return f"{field} <> :{param_name}" if value is not None else f"{field} IS NOT NULL"
-    elif op in ("in", "anyof"):
-        return f"{field} IN :{param_name}"
-    elif op in ("notin", "noneof"):
-        return f"{field} NOT IN :{param_name}"
+    elif op in ("in", "anyof", "notin", "noneof"):
+        # text() 는 스칼라 bindparam 만 지원 → list 를 개별 플레이스홀더로 전개
+        values = value if isinstance(value, list) else [value]
+        negate = op in ("notin", "noneof")
+        if not values:
+            # 빈 목록: in/anyof 는 무매칭, notin/noneof 는 전체매칭 (IN () 문법오류 회피)
+            return "(1 = 0)" if not negate else "(1 = 1)"
+        placeholders = ", ".join(f":{param_name}_{i}" for i in range(len(values)))
+        keyword = "NOT IN" if negate else "IN"
+        return f"{field} {keyword} ({placeholders})"
     else:
         raise BadRequestError(f"지원하지 않는 연산자: {op}")
 
@@ -125,7 +131,9 @@ def parse_filter(filter_obj, param_index=0) -> tuple[str, dict]:
         elif op in ("isblank", "isnotblank"):
             pass  # SQL에 값 파라미터 없음
         elif op in ("in", "anyof", "notin", "noneof"):
-            params[param_name] = value
+            values = value if isinstance(value, list) else [value]
+            for i, v in enumerate(values):
+                params[f"{param_name}_{i}"] = v
         else:
             params[param_name] = value
 
