@@ -114,7 +114,7 @@ class FileRepository:
             with conn.begin():
                 conn.execute(text(sql), args)
 
-    def delete_file(self, atch_file_id: str) -> None:
+    def delete_file(self, args: dict) -> None:
         """파일과 관련 상세 정보를 연쇄 삭제"""
         sql_delete_file_details = """
             DELETE FROM TN_FileDetail WHERE atch_file_id = :atch_file_id
@@ -124,8 +124,8 @@ class FileRepository:
         """
         with self.sql_client.connect() as conn:
             with conn.begin():
-                conn.execute(text(sql_delete_file_details), {"atch_file_id": atch_file_id})
-                conn.execute(text(sql_delete_file), {"atch_file_id": atch_file_id})
+                conn.execute(text(sql_delete_file_details), args)
+                conn.execute(text(sql_delete_file), args)
 
     def query_select_file_detail(self) -> str:
         """파일 상세 정보 조회 쿼리"""
@@ -212,7 +212,7 @@ class FileRepository:
             with conn.begin():
                 conn.execute(text(sql), args)
 
-    def delete_file_detail(self, atch_file_id: str, file_sn: int) -> None:
+    def delete_file_detail(self, args: dict) -> None:
         """개별 파일 상세 정보 삭제"""
         sql = """
             DELETE FROM TN_FileDetail
@@ -221,4 +221,4 @@ class FileRepository:
         """
         with self.sql_client.connect() as conn:
             with conn.begin():
-                conn.execute(text(sql), {"atch_file_id": atch_file_id, "file_sn": file_sn})
+                conn.execute(text(sql), args)
