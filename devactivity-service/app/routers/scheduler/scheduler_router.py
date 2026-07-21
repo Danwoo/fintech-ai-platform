@@ -1,5 +1,6 @@
 # routers/scheduler/scheduler_router.py
 from core.auth_context import get_email
+from core.authorization import ROLE_ADMIN, ROLE_OPERATOR, require_role, require_user
 from core.container import Container
 from core.logger import logger
 from core.security import verify_access_token
@@ -22,7 +23,11 @@ from utils.common.devextreme_utils import parse_filter_sort
 router = APIRouter(prefix="/scheduler", tags=["scheduler"])
 
 
-@router.get("", response_model=SchedulersOut, dependencies=[Depends(verify_access_token)])
+@router.get(
+    "",
+    response_model=SchedulersOut,
+    dependencies=[Depends(verify_access_token), Depends(require_user)],
+)
 @inject
 def select_scheduler_list(
     request: Request,
@@ -38,7 +43,11 @@ def select_scheduler_list(
     return SchedulersOut(items=items, total_count=total_count)
 
 
-@router.post("", response_model=CreateOut, dependencies=[Depends(verify_access_token)])
+@router.post(
+    "",
+    response_model=CreateOut,
+    dependencies=[Depends(verify_access_token), Depends(require_role(ROLE_ADMIN, ROLE_OPERATOR))],
+)
 @inject
 def insert_scheduler(
     request: Request,
@@ -52,7 +61,11 @@ def insert_scheduler(
     return CreateOut(data={"scheduler_id": keys[0]} if keys else None)
 
 
-@router.get("/{scheduler_id}", response_model=SchedulerOut, dependencies=[Depends(verify_access_token)])
+@router.get(
+    "/{scheduler_id}",
+    response_model=SchedulerOut,
+    dependencies=[Depends(verify_access_token), Depends(require_user)],
+)
 @inject
 def select_scheduler(
     request: Request,
@@ -62,7 +75,11 @@ def select_scheduler(
     return scheduler_service.select_scheduler({"scheduler_id": scheduler_id})
 
 
-@router.put("/{scheduler_id}", response_model=UpdateOut, dependencies=[Depends(verify_access_token)])
+@router.put(
+    "/{scheduler_id}",
+    response_model=UpdateOut,
+    dependencies=[Depends(verify_access_token), Depends(require_role(ROLE_ADMIN, ROLE_OPERATOR))],
+)
 @inject
 def update_scheduler(
     request: Request,
@@ -78,7 +95,11 @@ def update_scheduler(
     return UpdateOut()
 
 
-@router.delete("/{scheduler_id}", response_model=DeleteOut, dependencies=[Depends(verify_access_token)])
+@router.delete(
+    "/{scheduler_id}",
+    response_model=DeleteOut,
+    dependencies=[Depends(verify_access_token), Depends(require_role(ROLE_ADMIN, ROLE_OPERATOR))],
+)
 @inject
 def delete_scheduler(
     request: Request,
@@ -90,7 +111,11 @@ def delete_scheduler(
     return DeleteOut()
 
 
-@router.get("/{scheduler_id}/member", response_model=SchedulerMembersOut, dependencies=[Depends(verify_access_token)])
+@router.get(
+    "/{scheduler_id}/member",
+    response_model=SchedulerMembersOut,
+    dependencies=[Depends(verify_access_token), Depends(require_user)],
+)
 @inject
 def select_member_list(
     request: Request,
@@ -103,7 +128,11 @@ def select_member_list(
     return SchedulerMembersOut(items=items, total_count=total_count)
 
 
-@router.post("/{scheduler_id}/member", response_model=CreateOut, dependencies=[Depends(verify_access_token)])
+@router.post(
+    "/{scheduler_id}/member",
+    response_model=CreateOut,
+    dependencies=[Depends(verify_access_token), Depends(require_role(ROLE_ADMIN, ROLE_OPERATOR))],
+)
 @inject
 def insert_member(
     request: Request,
@@ -119,7 +148,9 @@ def insert_member(
 
 
 @router.delete(
-    "/{scheduler_id}/member/{account_id}", response_model=DeleteOut, dependencies=[Depends(verify_access_token)]
+    "/{scheduler_id}/member/{account_id}",
+    response_model=DeleteOut,
+    dependencies=[Depends(verify_access_token), Depends(require_role(ROLE_ADMIN, ROLE_OPERATOR))],
 )
 @inject
 def delete_member(
@@ -132,7 +163,11 @@ def delete_member(
     return DeleteOut()
 
 
-@router.post("/{scheduler_id}/run", response_model=MessageOut, dependencies=[Depends(verify_access_token)])
+@router.post(
+    "/{scheduler_id}/run",
+    response_model=MessageOut,
+    dependencies=[Depends(verify_access_token), Depends(require_role(ROLE_ADMIN, ROLE_OPERATOR))],
+)
 @inject
 async def run_scheduler_now(
     request: Request,
