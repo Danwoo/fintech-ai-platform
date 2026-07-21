@@ -12,6 +12,7 @@ class SchedulerRepository:
             SELECT *
               FROM (
                 SELECT scheduler_id
+                     , company_id
                      , scheduler_nm
                      , day_of_week
                      , hour
@@ -24,6 +25,7 @@ class SchedulerRepository:
                      , FORMAT(mod_dt, 'yyyy-MM-dd HH:mm:ss') AS mod_dt
                      , mod_id
                 FROM TN_Scheduler
+                WHERE company_id = :company_id
                 ) A
             WHERE 1 = 1
         """
@@ -31,6 +33,7 @@ class SchedulerRepository:
     def select_scheduler_list(self, args: dict) -> tuple[list[dict], int]:
         base_sql = self.query_select_scheduler()
         sql_where, sql_params = build_filter_params(args)
+        sql_params["company_id"] = args["company_id"]
         order_by = parse_sort(args.get("sort")) or "scheduler_id ASC"
         skip = int(args.get("skip", 0))
         take = args.get("take")
@@ -58,13 +61,14 @@ class SchedulerRepository:
             return [dict(r) for r in rows], len(rows)
 
     def select_scheduler(self, args: dict) -> dict | None:
+        # company_id 는 inner WHERE 에 이미 바인딩됨 (args 에 포함)
         sql = self.query_select_scheduler() + " AND scheduler_id = :scheduler_id"
         with self.sql_client.connect() as conn:
             row = conn.execute(text(sql), args).mappings().fetchone()
             return dict(row) if row else None
 
     def select_active_schedulers(self) -> list[dict]:
-        """잡 등록 대상 — use_at='Y'. 런타임 cron 구성에 필요한 필드만."""
+        """잡 등록 대상 — use_at='Y'. 부팅 시 전 테넌트 대상 (요청 밖 시스템 경로)."""
         sql = """
             SELECT scheduler_id, scheduler_nm, day_of_week, hour, minute, period_weeks
               FROM TN_Scheduler WHERE use_at = 'Y'
@@ -72,15 +76,22 @@ class SchedulerRepository:
         with self.sql_client.connect() as conn:
             return [dict(r) for r in conn.execute(text(sql)).mappings().all()]
 
+    def select_scheduler_for_job(self, scheduler_id: str) -> dict | None:
+        """cron 실행 시점 — 집계기간 산정용. scheduler_id 전역 유일이라 테넌트 무관 (요청 밖 시스템 경로)."""
+        sql = "SELECT scheduler_id, period_weeks FROM TN_Scheduler WHERE scheduler_id = :scheduler_id"
+        with self.sql_client.connect() as conn:
+            row = conn.execute(text(sql), {"scheduler_id": scheduler_id}).mappings().fetchone()
+            return dict(row) if row else None
+
     def insert_scheduler(self, args: dict) -> tuple:
         sql = """
             INSERT INTO TN_Scheduler (
-                 scheduler_id, scheduler_nm, day_of_week, hour, minute, period_weeks, use_at, description,
+                 scheduler_id, company_id, scheduler_nm, day_of_week, hour, minute, period_weeks, use_at, description,
                  reg_id, reg_dt, mod_id, mod_dt
             )
             OUTPUT INSERTED.scheduler_id
             VALUES (
-                 :scheduler_id, :scheduler_nm, :day_of_week, :hour, :minute, :period_weeks, :use_at, :description,
+                 :scheduler_id, :company_id, :scheduler_nm, :day_of_week, :hour, :minute, :period_weeks, :use_at, :description,
                  :reg_id, CURRENT_TIMESTAMP, :reg_id, CURRENT_TIMESTAMP
             )
         """
@@ -101,16 +112,19 @@ class SchedulerRepository:
                  , mod_id       = :mod_id
                  , mod_dt       = CURRENT_TIMESTAMP
              WHERE scheduler_id = :scheduler_id
+               AND company_id   = :company_id
         """
         with self.sql_client.connect() as conn:
             with conn.begin():
                 conn.execute(text(sql), args)
 
     def delete_scheduler(self, args: dict) -> None:
+        sql_members = "DELETE FROM TN_SchedulerMember WHERE scheduler_id = :scheduler_id AND company_id = :company_id"
+        sql_scheduler = "DELETE FROM TN_Scheduler WHERE scheduler_id = :scheduler_id AND company_id = :company_id"
         with self.sql_client.connect() as conn:
             with conn.begin():
-                conn.execute(text("DELETE FROM TN_SchedulerMember WHERE scheduler_id = :scheduler_id"), args)
-                conn.execute(text("DELETE FROM TN_Scheduler WHERE scheduler_id = :scheduler_id"), args)
+                conn.execute(text(sql_members), args)
+                conn.execute(text(sql_scheduler), args)
 
     # ── SchedulerMember (detail) ────────────────────────────────────────
     def select_member_list(self, args: dict) -> tuple[list[dict], int]:
@@ -125,39 +139,40 @@ class SchedulerRepository:
                  , mod_id
               FROM TN_SchedulerMember
              WHERE scheduler_id = :scheduler_id
+               AND company_id   = :company_id
         """
         order_by = parse_sort(args.get("sort")) or "account_id ASC"
+        params = {"scheduler_id": args["scheduler_id"], "company_id": args["company_id"]}
         with self.sql_client.connect() as conn:
-            rows = (
-                conn.execute(text(f"{base_sql} ORDER BY {order_by}"), {"scheduler_id": args["scheduler_id"]})
-                .mappings()
-                .all()
-            )
+            rows = conn.execute(text(f"{base_sql} ORDER BY {order_by}"), params).mappings().all()
             return [dict(r) for r in rows], len(rows)
 
     def select_member(self, args: dict) -> dict | None:
-        sql = "SELECT scheduler_id, account_id FROM TN_SchedulerMember WHERE scheduler_id = :scheduler_id AND account_id = :account_id"
+        sql = (
+            "SELECT scheduler_id, account_id FROM TN_SchedulerMember "
+            "WHERE scheduler_id = :scheduler_id AND account_id = :account_id AND company_id = :company_id"
+        )
         with self.sql_client.connect() as conn:
             row = conn.execute(text(sql), args).mappings().fetchone()
             return dict(row) if row else None
 
     def select_members_for_job(self, scheduler_id: str) -> list[dict]:
-        """잡 실행 시점 — 발송 대상 (account_id/email/name)."""
+        """잡 실행 시점 — 발송 대상 (account_id/email/name). scheduler_id 전역 유일이라 테넌트 무관."""
         sql = "SELECT account_id, email, name FROM TN_SchedulerMember WHERE scheduler_id = :scheduler_id ORDER BY account_id"
         with self.sql_client.connect() as conn:
             return [dict(r) for r in conn.execute(text(sql), {"scheduler_id": scheduler_id}).mappings().all()]
 
     def insert_member(self, args: dict) -> None:
         sql = """
-            INSERT INTO TN_SchedulerMember (scheduler_id, account_id, email, name, reg_id, reg_dt, mod_id, mod_dt)
-            VALUES (:scheduler_id, :account_id, :email, :name, :reg_id, CURRENT_TIMESTAMP, :reg_id, CURRENT_TIMESTAMP)
+            INSERT INTO TN_SchedulerMember (scheduler_id, company_id, account_id, email, name, reg_id, reg_dt, mod_id, mod_dt)
+            VALUES (:scheduler_id, :company_id, :account_id, :email, :name, :reg_id, CURRENT_TIMESTAMP, :reg_id, CURRENT_TIMESTAMP)
         """
         with self.sql_client.connect() as conn:
             with conn.begin():
                 conn.execute(text(sql), args)
 
     def delete_member(self, args: dict) -> None:
-        sql = "DELETE FROM TN_SchedulerMember WHERE scheduler_id = :scheduler_id AND account_id = :account_id"
+        sql = "DELETE FROM TN_SchedulerMember WHERE scheduler_id = :scheduler_id AND account_id = :account_id AND company_id = :company_id"
         with self.sql_client.connect() as conn:
             with conn.begin():
                 conn.execute(text(sql), args)
