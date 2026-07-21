@@ -22,7 +22,7 @@ class NavRepository:
             )
             VALUES (
                  :company_id
-               , :nav_dt
+               , CURRENT_TIMESTAMP
                , :nav
                , :benchmark
                , :daily_return

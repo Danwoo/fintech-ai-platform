@@ -8,7 +8,6 @@ from core.logger import logger
 from dependency_injector.wiring import Provide, inject
 from fastapi.concurrency import run_in_threadpool
 from services.message_queue.message_queue_service import MessageQueueService
-from utils.common.time_utils import format_kst_seconds
 
 PRODUCE_INTERVAL = 10
 TOPIC = "nav.snapshot"
@@ -35,7 +34,6 @@ class NavProducerManager:
         for key, (_base, step, low, high) in _SERIES.items():
             self._values[key] = max(low, min(high, self._values[key] + random.uniform(-step, step)))
         return {
-            "timestamp": format_kst_seconds(),
             "company_id": SEED_COMPANY_ID,
             **{k: round(v, 4) for k, v in self._values.items()},
         }
