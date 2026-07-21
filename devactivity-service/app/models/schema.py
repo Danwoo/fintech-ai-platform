@@ -14,6 +14,7 @@ class Scheduler(Base):
     __tablename__ = "TN_Scheduler"
 
     scheduler_id: Mapped[str] = mapped_column(String(20), primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, nullable=False)
     scheduler_nm: Mapped[str] = mapped_column(String(200), nullable=False)
     day_of_week: Mapped[str] = mapped_column(String(20), default="mon", server_default="mon")
     hour: Mapped[int] = mapped_column(Integer, default=9, server_default="9")
@@ -36,6 +37,7 @@ class SchedulerMember(Base):
     __tablename__ = "TN_SchedulerMember"
 
     scheduler_id: Mapped[str] = mapped_column(String(20), primary_key=True)
+    company_id: Mapped[int] = mapped_column(Integer, nullable=False)
     account_id: Mapped[str] = mapped_column(String(100), primary_key=True)
     email: Mapped[str] = mapped_column(String(200), nullable=False)
     name: Mapped[str | None] = mapped_column(String(200), nullable=True)
