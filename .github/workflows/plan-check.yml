@@ -1,0 +1,40 @@
+# plan-check — 계획 코멘트 없는 PR 을 가시화한다 (하네스 갭 9 구조화 — 3회 목격 후)
+#
+# PR 이 열릴 때 연결 이슈(Closes #N)에 계획 코멘트(`## 계획` / `## 승인된 계획`)가
+# 하나도 없으면 PR 에 경고 코멘트를 단다. **머지를 막지 않는다** — 위반을 사람 눈에
+# 보이게만 한다 (게이트 결정은 사람의 것).
+# 연결 이슈가 없는 PR 은 통과 — 사소한 변경 우회로(순차 한정)는 정상 경로다.
+# 기본 GITHUB_TOKEN 으로 충분 (레포 이슈 읽기 + PR 코멘트 쓰기 — PAT 불필요).
+#
+# 배포: 대상 레포의 .github/workflows/ 에 복사.
+
+name: plan-check
+
+on:
+  pull_request:
+    types: [opened]
+
+permissions:
+  issues: read
+  pull-requests: write
+
+jobs:
+  check-plan-comment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Warn if linked issues lack plan comments
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NODE: ${{ github.event.pull_request.node_id }}
+          PR_NUM: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          ISSUES=$(gh api graphql -f query='query($id:ID!){ node(id:$id){ ... on PullRequest { closingIssuesReferences(first:10){ nodes { number } } } } }' -f id="$PR_NODE" --jq '.data.node.closingIssuesReferences.nodes[].number')
+          if [ -z "$ISSUES" ]; then echo "연결 이슈 없음 — 통과 (사소한 변경 우회로)"; exit 0; fi
+          MISSING=""
+          for N in $ISSUES; do
+            CNT=$(gh api "repos/$REPO/issues/$N/comments" --paginate --jq '[.[] | select(.body | startswith("## 계획") or startswith("## 승인된 계획"))] | length' | paste -sd+ - | bc)
+            if [ "${CNT:-0}" -eq 0 ]; then MISSING="$MISSING #$N"; fi
+          done
+          if [ -z "$MISSING" ]; then echo "계획 코멘트 확인됨"; exit 0; fi
+          gh pr comment "$PR_NUM" --repo "$REPO" --body "⚠️ **계획 코멘트 없음**:$MISSING — 연결 이슈에 \`## 계획\`(승인 대기) 또는 \`## 승인된 계획\`(사전 승인 기록) 코멘트가 없습니다. 계획은 위험 불문 이슈에 남깁니다(잔류물 원칙 — 맥락이 PR 에만 있으면 이슈 쪽 사슬이 끊깁니다). 사소한 변경 우회로였다면 이슈를 연결하지 않고 내는 것이 규약입니다."
