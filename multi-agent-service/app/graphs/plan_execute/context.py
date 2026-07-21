@@ -5,15 +5,35 @@ redact_operational_info 는 tool 출력·sub-agent 결과를 context 에 넣기 
 
 from __future__ import annotations
 
+from typing import Any
+
 from langchain_core.messages import HumanMessage
 from utils.redaction.redactor import redact_operational_info
 
 
+def _message_text(msg: Any) -> str:
+    """메시지/LLM 응답의 content 를 str 로 정규화 — 멀티모달 list content 방어 (SoT).
+
+    langchain 메시지의 `.text` property 는 멀티모달 list content 에서 텍스트 파트만 병합한다
+    (str content 는 그대로). `.text` 없는 객체는 content(str/list)·str(msg) 로 폴백.
+    `.content` 를 str 로 가정하는 소비처(payload 저장·narrative·final_answer)는 이 헬퍼로 수렴.
+    """
+    text = getattr(msg, "text", None)
+    if isinstance(text, str):
+        return text
+    content = getattr(msg, "content", None)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(part.get("text", "") if isinstance(part, dict) else str(part) for part in content)
+    return str(msg)
+
+
 def _extract_query(messages: list) -> str:
-    """State messages 에서 마지막 사용자 쿼리 추출."""
+    """State messages 에서 마지막 사용자 쿼리 추출 (content 가 멀티모달 list 여도 텍스트만)."""
     for m in reversed(messages):
         if isinstance(m, HumanMessage):
-            return m.text.strip()  # content 가 멀티모달 list 여도 텍스트 파트만 추출
+            return _message_text(m).strip()
     return ""
 
 
@@ -23,7 +43,7 @@ def _build_history_ctx(messages: list, k: int) -> str:
     if not history_msgs:
         return ""
     recent = history_msgs[-k:]
-    return "\n".join(f"[{'사용자' if isinstance(m, HumanMessage) else 'AI'}] {str(m.content)}" for m in recent)
+    return "\n".join(f"[{'사용자' if isinstance(m, HumanMessage) else 'AI'}] {_message_text(m)}" for m in recent)
 
 
 def _format_prior_stage_results(all_results: list[dict], prior_tool_calls: list[dict] | None = None) -> str:

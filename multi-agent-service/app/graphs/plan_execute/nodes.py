@@ -30,6 +30,7 @@ from .context import (
     _extract_query,
     _format_all_results_for_answer,
     _format_prior_stage_results,
+    _message_text,
 )
 from .deps import _GraphDeps
 from .invocation import _invoke_agent_safe
@@ -398,8 +399,7 @@ async def _answer_node(deps: _GraphDeps, state: PlanExecuteState, config: Runnab
             deps.generator_llm.ainvoke(messages, config={**config, "run_name": "답변 작성"}),
             timeout=deps.answer_timeout_s,
         )
-        final_answer = ans.content if hasattr(ans, "content") else str(ans)
-        final_answer = _ensure_disclaimer(final_answer)
+        final_answer = _ensure_disclaimer(_message_text(ans))
     except Exception as e:
         logger.error("answer_node 실패: %s", e)
         final_answer = "답변 생성 중 일시 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
