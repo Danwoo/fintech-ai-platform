@@ -40,7 +40,7 @@ flowchart LR
 
 ```bash
 uv sync
-cd app && uv run uvicorn main:app --reload   # http://0.0.0.0:8005 (REST: /disclosure/*, MCP: /mcp)
+cd app && APP_ENV=development uv run uvicorn main:app --reload   # http://0.0.0.0:8005 (REST: /disclosure/*, MCP: /mcp)
 ```
 
 `.env.development` 키 (`app/.env.example` 참고) — **기본값으로 API 키 없이 mock 동작**:

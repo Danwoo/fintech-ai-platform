@@ -85,10 +85,10 @@ pre-commit run --all
 npm run dev
 npm run dev:prisma:push        # 스키마 → DB
 
-# Backend (cwd=app 필수 — config/import 가 app 디렉토리 기준)
-cd <backend>/app && uv run uvicorn main:app --reload
+# Backend (cwd=app 필수 — config/import 가 app 디렉토리 기준, APP_ENV=development 필수 — 없으면 .env.production 을 읽음)
+cd <backend>/app && APP_ENV=development uv run uvicorn main:app --reload
 
-# dev 멀티서비스 일괄 기동 (각 backend working_dir=<svc>/app, file-service:8100)
+# dev 멀티서비스 일괄 기동 (각 backend working_dir=<svc>/app + APP_ENV=development 주입, file-service:8100)
 process-compose up        # staging+ 는 docker-compose (compose.staging.yaml + 환경별 prod compose)
 ```
 

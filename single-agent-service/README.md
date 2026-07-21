@@ -46,7 +46,7 @@ sequenceDiagram
 
 ```bash
 # 소비할 MCP 서버 먼저 기동 (web tool 노출 — mock 데이터라 키 불필요)
-cd web-mcp-service/app && uv run uvicorn main:app --host 0.0.0.0 --port 8007 &
+cd web-mcp-service/app && APP_ENV=development uv run uvicorn main:app --host 0.0.0.0 --port 8007 &
 
 # 에이전트 서비스 기동 (포트 8010, process-compose/compose 미등록 — 단독 기동 전용)
 cd single-agent-service && uv sync

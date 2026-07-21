@@ -666,8 +666,8 @@ app.include_router(todo_router)
 ## 실행
 
 ```bash
-# 단일 백엔드 서비스 (cwd=app 필수)
-cd <service>/app && uv run uvicorn main:app --reload
+# 단일 백엔드 서비스 (cwd=app 필수, APP_ENV=development 필수 — 없으면 .env.production 을 읽음)
+cd <service>/app && APP_ENV=development uv run uvicorn main:app --reload
 
 # dev 전체 서비스 일괄 기동
 process-compose up        # staging+ 는 docker-compose

@@ -48,7 +48,7 @@ uv sync
 cp app/.env.example app/.env.development   # CHANGE_ME 값 채우기
 
 # portfolio-mcp-service(:8002) 가 먼저 떠 있어야 챗·요약이 동작 (기본 MOCK 데이터로 키 없이 구동)
-cd app && uv run uvicorn main:app --reload   # :8001 (cwd=app 필수)
+cd app && APP_ENV=development uv run uvicorn main:app --reload   # :8001 (cwd=app 필수)
 ```
 
 필요한 `.env` 키 — `DEVACTIVITY_SQL_DB_*`(스케줄러 저장), `MCP_SERVERS`(예: `[{"name":"portfolio","url":"http://localhost:8002"}]`), `LLM_BASE_URL`/`LLM_MODEL`/`LLM_API_KEY`, `EMAIL_*`(SMTP), `JWT_SECRET`(frontend·backend 동일값 필수).

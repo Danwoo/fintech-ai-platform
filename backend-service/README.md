@@ -50,7 +50,7 @@ flowchart LR
 uv sync                                   # 의존성 설치
 cp app/.env.example app/.env.development  # 값 채우기 (CHANGE_ME 교체)
 
-cd app && uv run uvicorn main:app --reload --port 8000   # cwd=app 필수 (config/import 기준)
+cd app && APP_ENV=development uv run uvicorn main:app --reload --port 8000   # cwd=app 필수 (config/import 기준)
 # Swagger: http://localhost:8000/docs
 ```
 
