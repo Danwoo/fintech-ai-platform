@@ -10,6 +10,7 @@ from core.logger import logger
 from graphs.results import AgentResult
 from langchain_core.messages import HumanMessage
 
+from .context import _message_text
 from .tool_trace import _ToolTraceCallback
 
 
@@ -52,14 +53,13 @@ async def _invoke_agent_safe(
             msgs = output.get("messages", [])
             ai_msgs = [m for m in reversed(msgs) if isinstance(m, AIMessage)]
             elapsed = round(time.monotonic() - t0, 2)
-            if not ai_msgs or not ai_msgs[0].content:
+            payload = _message_text(ai_msgs[0]) if ai_msgs else ""
+            if not payload:
                 last_result = AgentResult.empty(agent=agent_name, task=task, elapsed_s=elapsed, group=group)
             else:
                 if attempt > 0:
                     logger.info("[%s] 재시도 성공 (attempt %d)", agent_name, attempt + 1)
-                return AgentResult.ok(
-                    agent=agent_name, task=task, payload=ai_msgs[0].content, elapsed_s=elapsed, group=group
-                )
+                return AgentResult.ok(agent=agent_name, task=task, payload=payload, elapsed_s=elapsed, group=group)
         except TimeoutError:
             elapsed = round(time.monotonic() - t0, 2)
             last_result = AgentResult.timeout(

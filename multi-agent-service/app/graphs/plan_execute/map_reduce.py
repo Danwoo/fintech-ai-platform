@@ -26,7 +26,7 @@ from utils.agent.prompting import build_node_messages
 from utils.redaction.redactor import redact_operational_info
 
 from .compliance import _ensure_disclaimer
-from .context import _build_history_ctx, _extract_query, _format_all_results_for_answer
+from .context import _build_history_ctx, _extract_query, _format_all_results_for_answer, _message_text
 from .deps import _GraphDeps
 from .domains_map import _DOMAIN_LABELS, _classify_domain, _format_domain_results, _group_results_by_domain
 from .schemas import PlanExecuteState
@@ -115,7 +115,7 @@ async def _map_domain_answer(
                 llm_to_use.ainvoke(messages, config={**config, "run_name": "도메인 답변 작성"}),
                 timeout=deps.map_timeout_s,
             )
-            narrative = ans.content if hasattr(ans, "content") else str(ans)
+            narrative = _message_text(ans)
             elapsed = round(time.monotonic() - t0, 2)
             logger.info("[map] %s 완료 (%ss, %d자)", domain, elapsed, len(narrative))
             result = {
@@ -264,7 +264,7 @@ async def _reduce_node(deps: _GraphDeps, state: PlanExecuteState, config: Runnab
                 deps.generator_llm.ainvoke(messages, config={**config, "run_name": "답변 통합"}),
                 timeout=deps.answer_timeout_s,
             )
-            fallback_answer = _ensure_disclaimer(ans.content if hasattr(ans, "content") else str(ans))
+            fallback_answer = _ensure_disclaimer(_message_text(ans))
         except Exception as e:
             logger.error("[reduce] 폴백 single answer 실패: %s", e)
             fallback_answer = "답변 생성 중 일시 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
@@ -284,7 +284,7 @@ async def _reduce_node(deps: _GraphDeps, state: PlanExecuteState, config: Runnab
             deps.generator_llm.ainvoke(reduce_messages, config={**config, "run_name": "답변 통합"}),
             timeout=deps.answer_timeout_s,  # full reduce 는 sub-answer 들을 합치므로 answer_timeout 공유
         )
-        final_answer = _ensure_disclaimer(ans.content if hasattr(ans, "content") else str(ans))
+        final_answer = _ensure_disclaimer(_message_text(ans))
         logger.info("[reduce] 통합 답변 완료 (%d자)", len(final_answer))
     except Exception as e:
         logger.warning("[reduce] 통합 실패 — sub-answer concat 폴백: %s", e)
