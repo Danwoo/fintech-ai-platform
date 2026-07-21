@@ -23,7 +23,7 @@ services:
       NCCL_TIMEOUT: "600"
       NCCL_DEBUG: "WARN"
       SGLANG_ENABLE_SPEC_V2: 1
-      OPENAI_API_KEY: "CHANGE_ME"
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY must be set in platform/litellm/.env}
     cap_add:
       - SYS_NICE
     ulimits:
@@ -79,8 +79,8 @@ services:
     ports:
       - "4000:4000"
     environment:
-      LITELLM_MASTER_KEY: "CHANGE_ME"
-      OPENAI_API_KEY: "CHANGE_ME"
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?LITELLM_MASTER_KEY must be set in platform/litellm/.env}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY must be set in platform/litellm/.env}
     command:
       - --config
       - /app/config.yaml
