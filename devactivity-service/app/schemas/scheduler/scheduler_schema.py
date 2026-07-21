@@ -14,7 +14,11 @@ class Scheduler(TrimmedBaseModel):
     use_at: str = Field(default="N", max_length=5)  # Y=활성(잡 등록)
     description: str | None = Field(None, max_length=1000)
 
-    @field_validator("day_of_week")
+
+class DayOfWeekValidatedIn(BaseModel):
+    """입력 전용 믹스인 — 새 값만 검증. 응답/공유 베이스에는 얹지 않아 레거시 나쁜 행 읽기는 관대."""
+
+    @field_validator("day_of_week", check_fields=False)
     @classmethod
     def validate_day_of_week(cls, v: str) -> str:
         # 매니저가 쓰는 CronTrigger 를 SoT 로 재사용 — 검증기·실사용 포맷 lockstep
@@ -34,11 +38,11 @@ class SchedulersOut(BaseModel):
     total_count: int
 
 
-class SchedulerCreateIn(Scheduler):
+class SchedulerCreateIn(Scheduler, DayOfWeekValidatedIn):
     scheduler_id: str = Field(..., max_length=20)
 
 
-class SchedulerUpdateIn(Scheduler):
+class SchedulerUpdateIn(Scheduler, DayOfWeekValidatedIn):
     pass
 
 
