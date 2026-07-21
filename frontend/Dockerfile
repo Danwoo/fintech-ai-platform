@@ -9,7 +9,7 @@ RUN --mount=type=cache,target=/root/.npm npm ci --ignore-scripts
 
 
 COPY . .
-COPY .env.* ./
+COPY .env.${APP_ENV} ./
 
 RUN if [ "$APP_ENV" = "production" ] ; then \
       npm run build ; \
@@ -30,6 +30,6 @@ COPY --from=builder /usr/app/.next/standalone ./
 COPY --from=builder /usr/app/.next/static ./.next/static
 COPY --from=builder /usr/app/public ./public
 COPY --from=builder /usr/app/prisma ./prisma/
-COPY --from=builder /usr/app/.env.* ./
+COPY --from=builder /usr/app/.env.${APP_ENV} ./
 
 CMD ["sh", "-c", "env-cmd -f .env.$APP_ENV node server.js"]
