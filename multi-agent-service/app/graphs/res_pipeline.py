@@ -323,16 +323,26 @@ def build_res_domain_graph(
             evaluation: _ExecuteEvaluation = await asyncio.wait_for(
                 _evaluator.ainvoke(eval_messages, config={"run_name": "결과 평가"}), timeout=eval_timeout_s
             )
-            for v in evaluation.verdicts:
-                if v.agent in tier1_retry:
-                    v.verdict = "retry"
-                    if not v.refined_task:
-                        orig_task = next((r["task"] for r in sub_results if r["agent"] == v.agent), "")
-                        v.refined_task = f"[재시도] {orig_task}"
         except Exception as e:
             logger.warning("[res:%s] evaluate 실패 (%s), 전체 accept 처리", domain_name, e)
             evaluation = _ExecuteEvaluation(
                 verdicts=[_ResultVerdict(agent=r["agent"], verdict="accept") for r in sub_results]
+            )
+
+        # Tier 1 강제: status 실패 agent 는 LLM verdict 유무·판정과 무관하게 retry 로 승격.
+        # LLM 은 성공 결과만 평가하므로(results_text=ok only) 실패 agent 의 verdict 는 통상 반환되지 않는다 —
+        # 기존 verdict 만 갱신하면 강제 retry 가 사문화되므로, 누락분은 새 verdict 로 추가한다.
+        verdict_agents = {v.agent for v in evaluation.verdicts}
+        for v in evaluation.verdicts:
+            if v.agent in tier1_retry:
+                v.verdict = "retry"
+                if not v.refined_task:
+                    orig_task = next((r["task"] for r in sub_results if r["agent"] == v.agent), "")
+                    v.refined_task = f"[재시도] {orig_task}"
+        for agent in tier1_retry - verdict_agents:
+            orig_task = next((r["task"] for r in sub_results if r["agent"] == agent), "")
+            evaluation.verdicts.append(
+                _ResultVerdict(agent=agent, verdict="retry", refined_task=f"[재시도] {orig_task}")
             )
 
         for v in evaluation.verdicts:
@@ -412,9 +422,15 @@ def build_res_domain_graph(
         if evaluation and evaluation.verdicts:
             rejected = {v.agent for v in evaluation.verdicts if v.verdict == "reject"}
 
-        accepted_results = [r for r in sub_results if r["agent"] not in rejected]
+        # Fail-closed (results.py 계약): reject 뿐 아니라 status != ok(실패) 결과도 제외.
+        # 실패 결과의 error_message 가 output 으로 평탄화돼 synthesize 프롬프트에 유입되던 위반 차단 —
+        # retry 로 회복되지 못한 실패는 여기서 걸러 LLM 지식 기반 fallback 으로 넘긴다.
+        accepted_results = [r for r in sub_results if r["agent"] not in rejected and r.get("status") == "ok"]
+        excluded_failed = [r["agent"] for r in sub_results if r["agent"] not in rejected and r.get("status") != "ok"]
         if rejected:
             logger.info("[res:%s] synthesize: reject 제외 %s", domain_name, sorted(rejected))
+        if excluded_failed:
+            logger.info("[res:%s] synthesize: 실패(status!=ok) 제외 %s", domain_name, sorted(excluded_failed))
 
         # Fast-path: 단일 sub-agent ok + 결과 품질 충분(길이 ≥200 + 부정 키워드 부재) → synthesize 우회.
         # 부정 결과는 synthesize 를 통과시켜 LLM 지식 기반 fallback 답변을 생성하게 한다.
