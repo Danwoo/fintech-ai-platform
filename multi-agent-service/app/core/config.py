@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     # 도메인 토글 — instrument/financials/risk/market 중 활성화할 목록
     MULTI_AGENT_DOMAINS: list[str] = ["instrument", "financials", "risk", "market"]
 
+    # 멀티턴 히스토리 상한 — 무제한 로드로 인한 토큰·지연·메모리 폭주 방지.
+    # (question,answer) 쌍 최대 개수. SQL TOP 캡으로 대화 길이와 무관하게 최근 N턴만 적재.
+    MA_HISTORY_MAX_TURNS: int = 10
+
     # 실행 파라미터 (타임아웃·재시도·루프 상한)
     MA_CLARIFY_TIMEOUT_S: float = 15.0
     MA_AGENT_TIMEOUT_S: float = 120.0
