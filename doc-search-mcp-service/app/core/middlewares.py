@@ -1,5 +1,6 @@
 import time
 
+from core.config import settings
 from fastapi import Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware import Middleware
@@ -40,7 +41,7 @@ def get_middlewares():
     return [
         Middleware(
             CORSMiddleware,
-            allow_origins=["*"],
+            allow_origins=settings.CORS_ALLOW_ORIGINS,
             allow_credentials=False,
             allow_methods=["*"],
             allow_headers=["*"],
