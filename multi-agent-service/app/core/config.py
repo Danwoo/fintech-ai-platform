@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     # 로컬 개발 전용 JWT 우회 (default false, development 밖에서는 기동 거부)
     AUTH_DEV_BYPASS: bool = False
 
+    # CORS 허용 origin (와일드카드 금지 — 명시 목록)
+    CORS_ALLOW_ORIGINS: list[str] = ["http://localhost:3000"]
+
     # 인증 — frontend·backend·MCP 서버들과 동일 JWT_SECRET (사용자 JWT 검증 + 서비스 토큰 발급)
     JWT_SECRET: str = ""
 
