@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     SFTP_PASSWORD: str
     SFTP_BASE_PATH: str = "/upload"
 
+    # 업로드 파일당 최대 크기 (MB) — 초과 시 413
+    MAX_UPLOAD_SIZE_MB: int = 20
+
     JWT_SECRET: str
 
     VICTORIALOGS_URL: str = ""

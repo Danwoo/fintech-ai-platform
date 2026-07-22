@@ -4,9 +4,15 @@ from pathlib import Path
 
 import asyncssh
 from core.config import settings
-from core.exceptions import BadRequestError, ForbiddenError, NotFoundError
+from core.exceptions import (
+    BadRequestError,
+    ForbiddenError,
+    NotFoundError,
+    RequestEntityTooLargeError,
+)
 from core.logger import logger
 from fastapi.concurrency import run_in_threadpool
+from PIL import Image, UnidentifiedImageError
 from repositories.file.file_repository import FileRepository
 from repositories.file.sftp_file_repository import SftpFileRepository
 from utils.common.file_utils import (
@@ -24,6 +30,7 @@ class FileService:
         self.file_repository = file_repository
         self.file_store = file_store
         self.sftp_base_path = settings.SFTP_BASE_PATH
+        self.max_upload_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
     def select_file_list(self, args: dict) -> tuple[list, int]:
         """파일 목록 조회"""
@@ -61,12 +68,16 @@ class FileService:
         atch_file_id = args.get("atch_file_id")
         user_id = args["user_id"]
 
-        # 위험한 확장자 검사
+        # 위험한 확장자 · 크기 검사 (SFTP 작업 이전에 차단)
         for file in files:
             if file.filename:
                 ext = Path(file.filename).suffix.lower()
                 if ext in DANGEROUS_EXTENSIONS:
                     raise BadRequestError(f"위험한 파일 형식입니다: {ext}")
+            if file.size is not None and file.size > self.max_upload_bytes:
+                raise RequestEntityTooLargeError(
+                    f"파일 크기가 허용 한도({settings.MAX_UPLOAD_SIZE_MB}MB)를 초과했습니다: {file.filename}"
+                )
 
         # 파일 ID가 없으면 새로 생성
         if not atch_file_id:
@@ -206,13 +217,18 @@ class FileService:
                 if not all(crop.get(k) is not None for k in ("x1", "y1", "x2", "y2")):
                     raise BadRequestError("crop은 x1,y1,x2,y2를 모두 제공해야 합니다.")
 
-            content = await run_in_threadpool(
-                ImageTransformer.transform,
-                content=content,
-                filename=file_detail["orignl_file_nm"],
-                size=size,
-                crop=crop if crop else None,
-            )
+            try:
+                content = await run_in_threadpool(
+                    ImageTransformer.transform,
+                    content=content,
+                    filename=file_detail["orignl_file_nm"],
+                    size=size,
+                    crop=crop if crop else None,
+                )
+            except Image.DecompressionBombError as e:
+                raise RequestEntityTooLargeError("이미지 크기가 허용 한도를 초과했습니다.") from e
+            except UnidentifiedImageError as e:
+                raise BadRequestError("이미지 형식을 인식할 수 없습니다.") from e
 
         # MIME 타입 결정
         media_type = FileMetadataUtils.get_media_type(file_detail["orignl_file_nm"])
