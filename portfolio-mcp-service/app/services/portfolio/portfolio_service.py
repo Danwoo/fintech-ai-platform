@@ -1,5 +1,6 @@
 # services/portfolio/portfolio_service.py
 from clients.fx.fx_rate_client import FxRateClient
+from core.auth_context import require_company_id
 from repositories.portfolio.portfolio_repository import PortfolioRepository
 from utils.common.time_utils import now_kst
 from utils.portfolio.portfolio_utils import (
@@ -36,12 +37,25 @@ class PortfolioService:
         self.portfolio_repo = portfolio_repository
         self.fx_client = fx_rate_client
 
+    async def _tenant_target_ids(self, company_id: int, account_id: str | None) -> list[str]:
+        """요청자 테넌트 소유 계좌로 스코핑한 대상 account_id 목록.
+
+        account_id 미지정 → 내 계좌 전부. 지정 → 내 소유일 때만 그 하나, 아니면 빈 리스트(fail-closed —
+        타 테넌트 계좌 id 를 직접 실어도 존재를 노출하지 않고 0건 반환).
+        """
+        accounts = await self.portfolio_repo.list_accounts(company_id)
+        my_ids = [a["account_id"] for a in accounts]
+        if account_id is None:
+            return my_ids
+        return [account_id] if account_id in my_ids else []
+
     async def list_accounts(self) -> list[dict]:
-        """계좌 목록 (account_no 는 마스킹, NAV=현금+평가금액). 전역 카탈로그.
+        """계좌 목록 (account_no 는 마스킹, NAV=현금+평가금액). 요청자 테넌트 소유 계좌만.
 
         nav_by_currency 는 환율 없는 통화별 분리, nav_in_base 는 계좌 기준통화(base_currency)로 환산 합산.
         """
-        accounts = await self.portfolio_repo.list_accounts()
+        company_id = require_company_id()
+        accounts = await self.portfolio_repo.list_accounts(company_id)
         account_ids = [a["account_id"] for a in accounts]
         holdings_by_acc = await self.portfolio_repo.list_holdings_many(account_ids)
 
@@ -97,12 +111,12 @@ class PortfolioService:
     ) -> dict:
         """보유종목 조회 → 평가금액·손익·비중 계산된 구조화 보유분. NL 추출·LLM 요약은 호출자 몫.
 
-        account_id 지정 시 그 계좌만, 미지정 시 전체 계좌 합산. 비중(weight)은 계좌별 평가자산 기준.
+        account_id 지정 시 그 계좌만, 미지정 시 (요청자 테넌트 소유) 전체 계좌 합산. 비중(weight)은 계좌별 평가자산 기준.
         total_market_value_in_base 는 base_currency(기본 KRW)로 환산 합산, 환율 없는 통화는 unconverted.
         """
         base = base_currency or _DEFAULT_BASE_CURRENCY
-        accounts = await self.portfolio_repo.list_accounts()
-        target_ids = [account_id] if account_id else [a["account_id"] for a in accounts]
+        company_id = require_company_id()
+        target_ids = await self._tenant_target_ids(company_id, account_id)
         holdings_by_acc = await self.portfolio_repo.list_holdings_many(target_ids)
 
         rows: list[dict] = []
@@ -142,7 +156,7 @@ class PortfolioService:
         until: str | None = None,
         base_currency: str | None = None,
     ) -> dict:
-        """구조화 조건으로 거래 검색 → 필터·시간순 정렬된 구조화 거래. account_id 미지정 시 전체 계좌.
+        """구조화 조건으로 거래 검색 → 필터·시간순 정렬된 구조화 거래. account_id 미지정 시 (요청자 테넌트 소유) 전체 계좌.
 
         net_amount_in_base 는 base_currency(기본 KRW)로 환산한 순현금흐름, 환율 없는 통화는 unconverted.
         """
@@ -150,8 +164,8 @@ class PortfolioService:
         now = now_kst()
         since = norm_since(since, now)
         until = norm_until(until, now)
-        accounts = await self.portfolio_repo.list_accounts()
-        target_ids = [account_id] if account_id else [a["account_id"] for a in accounts]
+        company_id = require_company_id()
+        target_ids = await self._tenant_target_ids(company_id, account_id)
         tx_by_acc = await self.portfolio_repo.list_transactions_many(target_ids, since, until)
 
         kws = ticker_keywords or []
@@ -194,12 +208,12 @@ class PortfolioService:
         since: str | None = None,
         until: str | None = None,
     ) -> dict:
-        """구조화 조건으로 주문 검색 → 최신 접수순 구조화 주문. account_id 미지정 시 전체 계좌."""
+        """구조화 조건으로 주문 검색 → 최신 접수순 구조화 주문. account_id 미지정 시 (요청자 테넌트 소유) 전체 계좌."""
         now = now_kst()
         since = norm_since(since, now)
         until = norm_until(until, now)
-        accounts = await self.portfolio_repo.list_accounts()
-        target_ids = [account_id] if account_id else [a["account_id"] for a in accounts]
+        company_id = require_company_id()
+        target_ids = await self._tenant_target_ids(company_id, account_id)
         orders_by_acc = await self.portfolio_repo.list_orders_many(target_ids, since, until)
 
         kws = ticker_keywords or []
@@ -232,12 +246,14 @@ class PortfolioService:
         """계좌(account_id)의 활동 이벤트(체결·주문·입출금·배당 통합, 최신순).
 
         account_id 미존재 시 예외 대신 found=False 로 graceful 반환 — 에이전트 스트림이 깨지지 않고
-        '활동 없음(0건)' 과 '계좌 미존재' 를 구분해 답할 수 있게 한다.
+        '활동 없음(0건)' 과 '계좌 미존재' 를 구분해 답할 수 있게 한다. 타 테넌트 계좌 id 도 found=False
+        로 취급 — 소유 여부를 노출하지 않는다(존재 오라클 차단).
         """
         now = now_kst()
         since = norm_since(since, now)
         until = norm_until(until, now)
-        account = await self.portfolio_repo.find_account(account_id)
+        company_id = require_company_id()
+        account = await self.portfolio_repo.find_account(account_id, company_id)
         if not account:
             return {
                 "account_id": account_id,

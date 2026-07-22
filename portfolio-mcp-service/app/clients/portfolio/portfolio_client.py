@@ -13,9 +13,11 @@ from utils.common.retry_utils import is_http_retryable, retry
 
 # --- MOCK FIXTURES (공개 상장사 기반 샘플 포트폴리오 — API 키 없이 standalone 동작) ---
 # 계좌번호(account_no)는 노출 전 service 가 redact 로 가운데를 마스킹한다.
+# company_id 는 테넌트 소유 축 — 회사 1 이 ACC-1001·ACC-1002, 회사 2 가 ACC-1003 을 소유한다.
 _MOCK_ACCOUNTS: list[dict] = [
     {
         "account_id": "ACC-1001",
+        "company_id": 1,
         "account_no": "5012-01-2345678",
         "account_name": "종합매매계좌",
         "account_type": "cash",
@@ -24,6 +26,7 @@ _MOCK_ACCOUNTS: list[dict] = [
     },
     {
         "account_id": "ACC-1002",
+        "company_id": 1,
         "account_no": "5012-02-7654321",
         "account_name": "글로벌주식계좌",
         "account_type": "cash",
@@ -32,6 +35,7 @@ _MOCK_ACCOUNTS: list[dict] = [
     },
     {
         "account_id": "ACC-1003",
+        "company_id": 2,
         "account_no": "5099-07-1112223",
         "account_name": "연금저축계좌",
         "account_type": "pension",

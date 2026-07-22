@@ -15,13 +15,20 @@ class PortfolioRepository:
     def __init__(self, portfolio_client: PortfolioClient):
         self.broker = portfolio_client
 
-    async def list_accounts(self) -> list[dict]:
-        """계좌 목록 (account_no 포함 — service 가 마스킹). 전역 카탈로그."""
+    async def list_accounts(self, company_id: int | None = None) -> list[dict]:
+        """계좌 목록 (account_no 포함 — service 가 마스킹). company_id 지정 시 그 테넌트 소유만.
+
+        company_id=None 은 스코핑 없음(요청 밖/내부 용도) — service 는 항상 require_company_id 로 값을 실어 호출한다.
+        """
         if self.broker.use_real:
-            resp = await self.broker.get("/accounts")
+            params = {"company_id": company_id} if company_id is not None else None
+            resp = await self.broker.get("/accounts", params)
             resp.raise_for_status()
             return resp.json()
-        return self.broker.mock_accounts()
+        accounts = self.broker.mock_accounts()
+        if company_id is not None:
+            accounts = [a for a in accounts if a.get("company_id") == company_id]
+        return accounts
 
     async def list_holdings(self, account_id: str) -> list[dict]:
         """단일 계좌의 보유종목. 미존재 계좌는 빈 리스트."""
@@ -58,9 +65,9 @@ class PortfolioRepository:
         rows = self.broker.mock_orders(account_id)
         return [o for o in rows if timestamp_in_range(o.get("placed_at"), since, until)]
 
-    async def find_account(self, account_id: str) -> dict | None:
-        """account_id → 계좌 (활동 조회 전 존재 확인용)."""
-        accounts = await self.list_accounts()
+    async def find_account(self, account_id: str, company_id: int | None = None) -> dict | None:
+        """account_id → 계좌 (활동 조회 전 존재 확인용). company_id 지정 시 그 테넌트 소유 계좌만 매칭."""
+        accounts = await self.list_accounts(company_id)
         for a in accounts:
             if a.get("account_id") == account_id:
                 return a
