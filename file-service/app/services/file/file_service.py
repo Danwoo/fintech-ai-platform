@@ -9,7 +9,12 @@ from core.logger import logger
 from fastapi.concurrency import run_in_threadpool
 from repositories.file.file_repository import FileRepository
 from repositories.file.sftp_file_repository import SftpFileRepository
-from utils.common.file_utils import DANGEROUS_EXTENSIONS, FileMetadataUtils, ImageTransformer
+from utils.common.file_utils import (
+    DANGEROUS_EXTENSIONS,
+    FileMetadataUtils,
+    ImageTransformer,
+    resolve_upload_base,
+)
 
 
 class FileService:
@@ -78,9 +83,13 @@ class FileService:
                 }
             )
 
-        # 다음 파일 순번, 업로드 경로 지정
+        # 다음 파일 순번, 업로드 경로 지정 (base_path 는 SFTP_BASE_PATH 하위로 강제)
         next_sn = self.file_repository.get_next_file_sn(atch_file_id)
-        remote_path = FileMetadataUtils.get_upload_path(args.get("base_path") or self.sftp_base_path)
+        try:
+            upload_base = resolve_upload_base(args.get("base_path"), self.sftp_base_path)
+        except ValueError as e:
+            raise BadRequestError(str(e)) from e
+        remote_path = FileMetadataUtils.get_upload_path(upload_base)
 
         # SFTP 세션 (한 연결로 디렉토리 생성 + 병렬 업로드)
         async with self.file_store.open_session() as session:

@@ -5,6 +5,7 @@
 """
 
 import io
+import posixpath
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -14,6 +15,38 @@ from PIL import Image
 
 # 업로드 차단할 위험한 파일 확장자
 DANGEROUS_EXTENSIONS = {".exe", ".bat", ".cmd", ".com", ".pif", ".scr", ".vbs", ".js", ".jar", ".sh", ".ps1"}
+
+
+def resolve_upload_base(base_path: str | None, sftp_base_path: str) -> str:
+    """업로드 base_path 를 SFTP_BASE_PATH 하위로 강제 정규화.
+
+    클라이언트가 준 base_path 를 posix 정규화한 뒤 containment 를 검사한다 —
+    절대경로 탈출·`..` 상위탐색·형제 prefix(`/upload-evil`) 를 모두 거부.
+    base_path 가 비면 SFTP_BASE_PATH 자체를 쓴다.
+
+    Args:
+        base_path: 클라이언트 제공 경로 (신뢰 불가)
+        sftp_base_path: 허용 루트 (SFTP_BASE_PATH)
+
+    Returns:
+        str: SFTP_BASE_PATH 하위로 확정된 절대경로
+
+    Raises:
+        ValueError: 정규화 결과가 허용 루트를 벗어날 때
+    """
+    root = posixpath.normpath("/" + sftp_base_path.strip().lstrip("/"))
+    raw = (base_path or "").strip()
+    if not raw:
+        return root
+
+    if posixpath.isabs(raw):
+        candidate = posixpath.normpath(raw)
+    else:
+        candidate = posixpath.normpath(posixpath.join(root, raw))
+
+    if candidate != root and not candidate.startswith(root + "/"):
+        raise ValueError(f"업로드 경로가 허용 범위를 벗어났습니다: {base_path!r}")
+    return candidate
 
 
 def strip_extension(file_nm: str) -> str:
