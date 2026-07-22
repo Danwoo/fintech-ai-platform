@@ -43,6 +43,7 @@ async def list_holdings(
         asset_class=body.asset_class,
         ticker_keywords=body.ticker_keywords,
         min_weight=body.min_weight,
+        base_currency=body.base_currency,
     )
     return HoldingsOut(**result)
 
@@ -60,6 +61,7 @@ async def search_transactions(
         ticker_keywords=body.ticker_keywords,
         since=body.since,
         until=body.until,
+        base_currency=body.base_currency,
     )
     return SearchTransactionsOut(**result)
 
