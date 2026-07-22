@@ -73,10 +73,20 @@ BROKEN_ACCOUNT = "ACC-BOOM"  # 전송 장애 → 예외
 
 EVENTS: dict[tuple[str, int], list[dict]] = {
     ("ACC-A1", 0): [
-        {"date": "2026-07-07", "action": "trade", "detail": "trade 삼성전자 10주 (+1,000,000 KRW)", "amount": 1000000.0},
+        {
+            "date": "2026-07-07",
+            "action": "trade",
+            "detail": "trade 삼성전자 10주 (+1,000,000 KRW)",
+            "amount": 1000000.0,
+        },
     ],
     ("ACC-A1", 1): [
-        {"date": "2026-07-14", "action": "dividend", "detail": "dividend 삼성전자 배당 (+35,000 KRW)", "amount": 35000.0},
+        {
+            "date": "2026-07-14",
+            "action": "dividend",
+            "detail": "dividend 삼성전자 배당 (+35,000 KRW)",
+            "amount": 35000.0,
+        },
     ],
     ("ACC-A2", 0): [
         {"date": "2026-07-08", "action": "cash", "detail": "deposit 입금 (+500,000 KRW)", "amount": 500000.0},
