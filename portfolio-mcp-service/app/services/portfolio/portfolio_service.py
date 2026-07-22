@@ -1,48 +1,66 @@
 # services/portfolio/portfolio_service.py
+from clients.fx.fx_rate_client import FxRateClient
 from repositories.portfolio.portfolio_repository import PortfolioRepository
 from utils.common.time_utils import now_kst
 from utils.portfolio.portfolio_utils import (
+    assign_weights,
+    convert_to_base,
     event_line,
+    fx_pairs_for,
     holding_line,
+    nav_by_currency,
     norm_since,
     norm_until,
     order_line,
+    select_rates,
     sum_by_currency,
+    sum_market_value_by_currency,
     timestamp_sort_key,
     tx_line,
 )
 from utils.redaction.redactor import redact_secrets
 
 _MAX_RESULTS = 250  # 검색 결과 상한 (초과 시 최신쪽 유지)
+_DEFAULT_BASE_CURRENCY = "KRW"
 
 
 class PortfolioService:
     """브로커리지/포트폴리오 데이터 조회 (순수 포트폴리오 데이터, LLM 없음).
 
     숫자(평가금액·손익·비중)는 보유·체결 mock/공시 데이터에서 결정론적으로 계산하며 추정하지 않는다.
+    통화가 섞이면 통화별 dict 로 분리하고, 기준통화 환산합(*_in_base)은 market-data-mcp 환율로만 낸다 —
+    환율 없는 통화는 지어내지 않고 unconverted_currencies 로 정직 표기한다.
     """
 
-    def __init__(self, portfolio_repository: PortfolioRepository):
+    def __init__(self, portfolio_repository: PortfolioRepository, fx_rate_client: FxRateClient):
         self.portfolio_repo = portfolio_repository
+        self.fx_client = fx_rate_client
 
     async def list_accounts(self) -> list[dict]:
-        """계좌 목록 (account_no 는 마스킹, NAV=현금+평가금액). 전역 카탈로그."""
+        """계좌 목록 (account_no 는 마스킹, NAV=현금+평가금액). 전역 카탈로그.
+
+        nav_by_currency 는 환율 없는 통화별 분리, nav_in_base 는 계좌 기준통화(base_currency)로 환산 합산.
+        """
         accounts = await self.portfolio_repo.list_accounts()
         account_ids = [a["account_id"] for a in accounts]
         holdings_by_acc = await self.portfolio_repo.list_holdings_many(account_ids)
+
+        # 계좌별 통화별 NAV 를 먼저 내고, 환산에 필요한 통화쌍을 모아 한 번에 조회 (계좌마다 기준통화가 다를 수 있음)
+        navs: dict[str, tuple[str, float, dict[str, float]]] = {}
+        pairs: set[str] = set()
+        for a in accounts:
+            base_ccy = a.get("base_currency") or _DEFAULT_BASE_CURRENCY
+            cash = float(a.get("cash_balance") or 0)
+            nav_by_ccy = nav_by_currency(base_ccy, cash, holdings_by_acc.get(a["account_id"], []))
+            navs[a["account_id"]] = (base_ccy, cash, nav_by_ccy)
+            pairs |= fx_pairs_for(nav_by_ccy, base_ccy)
+        fetched = await self.fx_client.fetch_rates(pairs)
+
         out = []
         for a in accounts:
-            holdings = holdings_by_acc.get(a["account_id"], [])
-            base_ccy = a.get("base_currency") or "KRW"
-            cash = float(a.get("cash_balance") or 0)
-            # 예수금은 기준통화, 보유분은 종목통화 — 환율 없이 통화를 섞어 더하지 않고 통화별로 NAV 를 낸다
-            nav_by_ccy: dict[str, float] = {base_ccy: cash}
-            for h in holdings:
-                ccy = h.get("currency") or base_ccy
-                nav_by_ccy[ccy] = nav_by_ccy.get(ccy, 0.0) + float(h.get("quantity") or 0) * float(
-                    h.get("last_price") or 0
-                )
-            nav_by_ccy = {ccy: round(v, 2) for ccy, v in nav_by_ccy.items()}
+            base_ccy, cash, nav_by_ccy = navs[a["account_id"]]
+            rates, fx_used = select_rates(fetched, nav_by_ccy, base_ccy)
+            nav_in_base, unconverted = convert_to_base(nav_by_ccy, base_ccy, rates)
             out.append(
                 {
                     "account_id": a["account_id"],
@@ -52,10 +70,22 @@ class PortfolioService:
                     "base_currency": base_ccy,
                     "nav": nav_by_ccy[base_ccy],
                     "nav_by_currency": nav_by_ccy,
+                    "nav_in_base": nav_in_base,
+                    "fx_rates_used": fx_used,
+                    "unconverted_currencies": unconverted,
                     "cash_balance": round(cash, 2),
                 }
             )
         return sorted(out, key=lambda x: x["account_id"])
+
+    async def _convert_by_currency(
+        self, by_currency: dict[str, float], base_currency: str
+    ) -> tuple[float, dict[str, dict], list[str]]:
+        """통화별 합계를 기준통화로 환산 → (합계_in_base, fx_rates_used, unconverted). 환율은 fail-soft."""
+        fetched = await self.fx_client.fetch_rates(fx_pairs_for(by_currency, base_currency))
+        rates, fx_used = select_rates(fetched, by_currency, base_currency)
+        total_in_base, unconverted = convert_to_base(by_currency, base_currency, rates)
+        return total_in_base, fx_used, unconverted
 
     async def list_holdings(
         self,
@@ -63,11 +93,14 @@ class PortfolioService:
         asset_class: str | None = None,
         ticker_keywords: list[str] | None = None,
         min_weight: float | None = None,
+        base_currency: str | None = None,
     ) -> dict:
         """보유종목 조회 → 평가금액·손익·비중 계산된 구조화 보유분. NL 추출·LLM 요약은 호출자 몫.
 
         account_id 지정 시 그 계좌만, 미지정 시 전체 계좌 합산. 비중(weight)은 계좌별 평가자산 기준.
+        total_market_value_in_base 는 base_currency(기본 KRW)로 환산 합산, 환율 없는 통화는 unconverted.
         """
+        base = base_currency or _DEFAULT_BASE_CURRENCY
         accounts = await self.portfolio_repo.list_accounts()
         target_ids = [account_id] if account_id else [a["account_id"] for a in accounts]
         holdings_by_acc = await self.portfolio_repo.list_holdings_many(target_ids)
@@ -75,9 +108,7 @@ class PortfolioService:
         rows: list[dict] = []
         for acc_id, holdings in holdings_by_acc.items():
             lines = [holding_line(acc_id, h) for h in holdings]
-            acc_total = sum(line["market_value"] for line in lines)
-            for line in lines:
-                line["weight"] = round(line["market_value"] / acc_total * 100, 2) if acc_total else 0.0
+            assign_weights(lines)  # 계좌별 평가자산 기준 비중 (full precision)
             rows.extend(lines)
 
         kws = ticker_keywords or []
@@ -89,10 +120,16 @@ class PortfolioService:
             and (min_weight is None or r["weight"] >= min_weight)
         ]
         rows.sort(key=lambda r: r["market_value"], reverse=True)
+        by_ccy = sum_market_value_by_currency(rows)
+        total_in_base, fx_used, unconverted = await self._convert_by_currency(by_ccy, base)
         return {
             "holdings": rows,
             "holding_count": len(rows),
-            "total_market_value_by_currency": sum_by_currency(rows, "market_value"),
+            "total_market_value_by_currency": by_ccy,
+            "base_currency": base,
+            "total_market_value_in_base": total_in_base,
+            "fx_rates_used": fx_used,
+            "unconverted_currencies": unconverted,
             "accounts": sorted({r["account_id"] for r in rows}),
         }
 
@@ -103,8 +140,13 @@ class PortfolioService:
         ticker_keywords: list[str] | None = None,
         since: str | None = None,
         until: str | None = None,
+        base_currency: str | None = None,
     ) -> dict:
-        """구조화 조건으로 거래 검색 → 필터·시간순 정렬된 구조화 거래. account_id 미지정 시 전체 계좌."""
+        """구조화 조건으로 거래 검색 → 필터·시간순 정렬된 구조화 거래. account_id 미지정 시 전체 계좌.
+
+        net_amount_in_base 는 base_currency(기본 KRW)로 환산한 순현금흐름, 환율 없는 통화는 unconverted.
+        """
+        base = base_currency or _DEFAULT_BASE_CURRENCY
         now = now_kst()
         since = norm_since(since, now)
         until = norm_until(until, now)
@@ -128,12 +170,18 @@ class PortfolioService:
         keyed.sort(key=lambda pair: pair[0])  # 시간순(오래된→최신)
         truncated = len(keyed) > _MAX_RESULTS
         rows = [line for _, line in (keyed[-_MAX_RESULTS:] if truncated else keyed)]
+        net_by_ccy = sum_by_currency(rows, "amount")
+        net_in_base, fx_used, unconverted = await self._convert_by_currency(net_by_ccy, base)
         return {
             "transactions": rows,
             "transaction_count": len(rows),
             "truncated": truncated,
             "period": f"{since[:10]} ~ {until[:10]}",
-            "net_amount_by_currency": sum_by_currency(rows, "amount"),
+            "net_amount_by_currency": net_by_ccy,
+            "base_currency": base,
+            "net_amount_in_base": net_in_base,
+            "fx_rates_used": fx_used,
+            "unconverted_currencies": unconverted,
             "accounts": sorted({r["account_id"] for r in rows}),
         }
 

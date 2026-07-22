@@ -3,6 +3,11 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
+class FxRate(BaseModel):
+    rate: float = Field(description="1 단위 원통화 = rate 단위 기준통화 (통화쌍 '원통화/기준통화' 의 현재 환율)")
+    asof: str = Field(default="", description="환율 기준 시각 (ISO-8601). 시세는 지연될 수 있음")
+
+
 class AccountInfo(BaseModel):
     account_id: str = Field(description="계좌 식별자 (내부 ID, 마스킹 안 됨)")
     account_no: str = Field(
@@ -16,6 +21,18 @@ class AccountInfo(BaseModel):
     )
     nav_by_currency: dict[str, float] = Field(
         description="통화별 순자산가치(환율 환산 없음). 예수금은 기준통화 버킷에 포함. 단일통화 계좌면 {base_currency: nav}"
+    )
+    nav_in_base: float = Field(
+        default=0.0,
+        description="기준통화(base_currency)로 환산 합산한 순자산가치. unconverted_currencies 통화는 환율이 없어 제외됨(그 통화 제외한 합)",
+    )
+    fx_rates_used: dict[str, FxRate] = Field(
+        default_factory=dict,
+        description="환산에 쓴 통화쌍별 환율 근거 {pair: {rate, asof}}. 환산이 없으면(단일통화) 빈 dict",
+    )
+    unconverted_currencies: list[str] = Field(
+        default_factory=list,
+        description="환율이 없어 nav_in_base 에서 제외된 통화 목록. 비어야 nav_in_base 가 전체를 포괄(지어내지 않음)",
     )
     cash_balance: float = Field(description="예수금(현금성) 잔액. 기준 통화 단위")
 
@@ -56,6 +73,10 @@ class HoldingsIn(BaseModel):
         default=None,
         description="최소 비중(%) 필터. 지정 시 계좌 내 비중이 이 값 이상인 보유분만. 미지정 시 제한 없음",
     )
+    base_currency: str = Field(
+        default="KRW",
+        description="기준통화. total_market_value_in_base 를 이 통화로 환산해 낸다 (예: KRW, USD). 미지정 시 KRW",
+    )
 
 
 class HoldingsOut(BaseModel):
@@ -63,6 +84,18 @@ class HoldingsOut(BaseModel):
     holding_count: int = Field(description="조회된 보유종목 수")
     total_market_value_by_currency: dict[str, float] = Field(
         description="통화별 평가금액 합계(환율 환산 없음). 통화가 섞인 결과도 통화별로 분리돼 합산이 무의미해지지 않는다"
+    )
+    base_currency: str = Field(default="KRW", description="total_market_value_in_base 환산 기준통화")
+    total_market_value_in_base: float = Field(
+        default=0.0,
+        description="기준통화로 환산 합산한 평가금액. unconverted_currencies 통화는 환율이 없어 제외됨",
+    )
+    fx_rates_used: dict[str, FxRate] = Field(
+        default_factory=dict, description="환산에 쓴 통화쌍별 환율 근거 {pair: {rate, asof}}"
+    )
+    unconverted_currencies: list[str] = Field(
+        default_factory=list,
+        description="환율이 없어 total_market_value_in_base 에서 제외된 통화 목록(지어내지 않음)",
     )
     accounts: list[str] = Field(description="결과에 포함된 계좌 식별자 목록")
 
@@ -102,6 +135,10 @@ class SearchTransactionsIn(BaseModel):
         default=None,
         description="종료일. ISO 8601 또는 YYYY-MM-DD. 미지정 시 현재 시각",
     )
+    base_currency: str = Field(
+        default="KRW",
+        description="기준통화. net_amount_in_base 를 이 통화로 환산해 낸다 (예: KRW, USD). 미지정 시 KRW",
+    )
 
 
 class SearchTransactionsOut(BaseModel):
@@ -111,6 +148,18 @@ class SearchTransactionsOut(BaseModel):
     period: str = Field(description="검색 기간. 형식 YYYY-MM-DD ~ YYYY-MM-DD")
     net_amount_by_currency: dict[str, float] = Field(
         description="통화별 거래 금액 부호합(환율 환산 없음). 순현금흐름 추정용 — 통화가 섞여도 통화별로 분리"
+    )
+    base_currency: str = Field(default="KRW", description="net_amount_in_base 환산 기준통화")
+    net_amount_in_base: float = Field(
+        default=0.0,
+        description="기준통화로 환산한 순현금흐름 부호합. unconverted_currencies 통화는 환율이 없어 제외됨",
+    )
+    fx_rates_used: dict[str, FxRate] = Field(
+        default_factory=dict, description="환산에 쓴 통화쌍별 환율 근거 {pair: {rate, asof}}"
+    )
+    unconverted_currencies: list[str] = Field(
+        default_factory=list,
+        description="환율이 없어 net_amount_in_base 에서 제외된 통화 목록(지어내지 않음)",
     )
     accounts: list[str] = Field(description="결과에 포함된 계좌 식별자 목록")
 
