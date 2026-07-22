@@ -1,0 +1,55 @@
+# review-gate — 리뷰 없는 머지를 구조적으로 차단한다 (require-merge-label 의 후속판)
+#
+# 전환 이유 (2026-07-22 실측 2건):
+#   1) "리뷰 대기"를 실패(빨간 ❌)가 아니라 **pending(노란 ●) 커밋 상태**로 표현한다.
+#      — fail 방식은 PR 마다 실패 이력을 쌓아 사람("왜 자꾸 빨간색?")과 도구(Orca 뱃지가
+#        실패 이력 개수를 셈)를 반복해서 속였다.
+#   2) push(synchronize) 가 오면 `human: merge` 라벨을 **자동 회수**한다.
+#      — 리뷰 통과 뒤 푸시된 코드가 라벨 잔존으로 무검증 머지 가능해지는 창을 닫는다
+#        (PR#111 충돌 해소 커밋에서 실측 — 재확인 끝나기 전까지 머지 버튼이 열려 있었다).
+#
+# 게이트 원리: branch protection 의 required status check 를 커밋 상태 컨텍스트
+# `review-gate` 로 건다. 이 워크플로가 라벨을 그 상태로 동기화한다:
+#   `human: merge` 있음 → success / 없음 → pending. 잡 자체는 항상 성공 (빨간 이력 없음).
+# 라벨은 이벤트 페이로드가 아니라 gh 로 직접 조회한다 (페이로드 labels 불안정 — 실측).
+#
+# 배포: 대상 레포 .github/workflows/ 에 복사 (기존 require-merge-label.yml 은 제거) +
+#       main 보호의 required contexts 를 ["review-gate"] 로 교체. `human: merge` 라벨 필요.
+#       주의: 보호 교체와 이 파일의 main 반영 사이에 열리는 PR 은 상태 없음으로 잠긴다 —
+#       전환은 열린 PR 이 없는 틈에 한다.
+
+name: review-gate
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+
+permissions:
+  statuses: write
+  pull-requests: write   # synchronize 시 라벨 회수
+
+jobs:
+  review-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 리뷰 라벨 ↔ 커밋 상태 동기화
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          ACTION: ${{ github.event.action }}
+        run: |
+          if [ "$ACTION" = "synchronize" ]; then
+            # 새 커밋 = 리뷰가 본 적 없는 코드 — 승인 라벨을 회수해 재리뷰를 강제한다
+            gh pr edit "$PR" --repo "$REPO" --remove-label "human: merge" 2>/dev/null || true
+          fi
+          LABELS=$(gh pr view "$PR" --repo "$REPO" --json labels --jq '[.labels[].name] | join("|")')
+          echo "라벨: [$LABELS]"
+          case "|$LABELS|" in
+            *"|human: merge|"*) STATE=success; DESC="독립 리뷰 통과" ;;
+            *)                  STATE=pending; DESC="독립 리뷰 대기 중" ;;
+          esac
+          gh api "repos/$REPO/statuses/$SHA" \
+            -f state="$STATE" -f context=review-gate -f description="$DESC" >/dev/null
+          echo "review-gate = $STATE"
