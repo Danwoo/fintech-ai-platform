@@ -8,15 +8,19 @@ import html as html_lib
 from schemas.report.report_schema import ActivitySummaries
 
 
-def collect(activities: list[dict], member: dict) -> dict[str, list[str]]:
-    """activity 목록에서 member 계좌분을 포트폴리오별 활동 설명으로 수집."""
-    acc_id = str(member["account_id"]).lower()
-    by_portfolio: dict[str, list[str]] = {}
-    for a in activities:
-        if acc_id == str(a.get("account_id", "")).lower():
-            portfolio = a.get("portfolio") or a.get("account_name") or a["account_id"]
-            by_portfolio.setdefault(portfolio, []).append(a["title"])
-    return by_portfolio
+def collect(events: list[dict], group_label: str) -> dict[str, list[str]]:
+    """계좌 활동 이벤트(date/detail)를 한 그룹의 활동 설명 라인으로 수집.
+
+    tool 응답 events 는 최신순 — 요약 프롬프트 계약(오래된 것 → 최신)에 맞춰 역순으로 담는다.
+    """
+    lines: list[str] = []
+    for e in reversed(events):
+        detail = str(e.get("detail") or "").strip()
+        if not detail:
+            continue
+        date = str(e.get("date") or "")[:10]
+        lines.append(f"{date} {detail}".strip())
+    return {str(group_label): lines} if lines else {}
 
 
 def dedupe_common(by_portfolio: dict[str, list[str]]) -> dict[str, list[str]]:

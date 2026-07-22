@@ -211,7 +211,10 @@ def main() -> int:
 
     # (1) 서비스 토큰 → 전 라우트 403
     check("서비스토큰 GET 리스트 → 403", client.get("/scheduler", headers=_hdr(service_tok)).status_code == 403)
-    check("서비스토큰 POST 생성 → 403", client.post("/scheduler", headers=_hdr(service_tok), json=create_body).status_code == 403)
+    check(
+        "서비스토큰 POST 생성 → 403",
+        client.post("/scheduler", headers=_hdr(service_tok), json=create_body).status_code == 403,
+    )
     check(
         "서비스토큰 POST run → 403",
         client.post("/scheduler/s-a/run", headers=_hdr(service_tok)).status_code == 403,
