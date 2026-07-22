@@ -13,8 +13,31 @@ from zoneinfo import ZoneInfo
 
 from PIL import Image
 
-# 업로드 차단할 위험한 파일 확장자
-DANGEROUS_EXTENSIONS = {".exe", ".bat", ".cmd", ".com", ".pif", ".scr", ".vbs", ".js", ".jar", ".sh", ".ps1"}
+# 프리뷰 디코드 시 decompression bomb 상한 (픽셀 수). PIL 은 2×MAX 초과에서만
+# DecompressionBombError 를 던지므로 transform 에서 이 값으로 명시 검사도 한다.
+MAX_IMAGE_PIXELS = 50_000_000
+Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
+
+# 업로드 차단할 위험한 파일 확장자 (.svg/.svgz 는 인라인 스크립트 실행 위험 — 저장형 XSS)
+DANGEROUS_EXTENSIONS = {
+    ".exe",
+    ".bat",
+    ".cmd",
+    ".com",
+    ".pif",
+    ".scr",
+    ".vbs",
+    ".js",
+    ".jar",
+    ".sh",
+    ".ps1",
+    ".svg",
+    ".svgz",
+}
+
+# 프리뷰를 인라인(브라우저 렌더)으로 서빙해도 안전한 래스터 MIME 화이트리스트.
+# 이 목록 밖(octet-stream 등)은 프리뷰에서 attachment 로 강제 다운로드한다.
+SAFE_INLINE_MEDIA_TYPES = frozenset({"image/jpeg", "image/png", "image/gif", "image/bmp", "image/webp"})
 
 
 def resolve_upload_base(base_path: str | None, sftp_base_path: str) -> str:
@@ -61,8 +84,8 @@ def strip_extension(file_nm: str) -> str:
 class FileMetadataUtils:
     """파일 메타데이터 생성 유틸리티"""
 
-    # 이미지 확장자 목록
-    IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg"}
+    # 이미지 확장자 목록 (.svg 제외 — 인라인 렌더 시 스크립트 실행 위험)
+    IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"}
 
     # MIME 타입 매핑
     MEDIA_TYPES = {
@@ -72,7 +95,6 @@ class FileMetadataUtils:
         ".gif": "image/gif",
         ".bmp": "image/bmp",
         ".webp": "image/webp",
-        ".svg": "image/svg+xml",
     }
 
     @staticmethod
@@ -147,6 +169,12 @@ class ImageTransformer:
             bytes: 변환된 이미지 bytes
         """
         im = Image.open(io.BytesIO(content))
+
+        # decompression bomb 방어 — 디코드(crop/thumbnail/save) 전 헤더 선언 픽셀 수로 차단.
+        # PIL 은 2×MAX 초과에서만 자동 raise 하므로 MAX~2×MAX 구간을 여기서 결정론적으로 막는다.
+        width, height = im.size
+        if width * height > MAX_IMAGE_PIXELS:
+            raise Image.DecompressionBombError(f"이미지 픽셀 수가 허용 한도를 초과했습니다: {width}x{height}")
 
         # 1. 크롭 적용
         if crop and any(crop.get(k) is not None for k in ("x1", "y1", "x2", "y2")):
