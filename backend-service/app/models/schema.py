@@ -1,7 +1,7 @@
 import datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, Index, Integer, Numeric, String, Text, func
+from sqlalchemy import DateTime, Index, Integer, Numeric, String, Text, func, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -107,10 +107,22 @@ class Holding(Base):
 # 6. Nav (producer → message queue → consumer 파이프라인이 적재하는 포트폴리오 NAV/가격 시계열, 대시보드 차트 소스)
 class Nav(Base):
     __tablename__ = "TN_Nav"
-    __table_args__ = (Index("idx_nav_dt", "nav_dt"), Index("idx_nav_company", "company_id"))
+    __table_args__ = (
+        Index("idx_nav_dt", "nav_dt"),
+        Index("idx_nav_company", "company_id"),
+        # 큐 at-least-once 재소비의 중복 적재 방지 멱등키. 수동/기존 적재행은 NULL 허용해야 하므로
+        # 필터드 유니크 (MSSQL 은 유니크 인덱스에 NULL 을 1개만 허용 — 필터로 NULL 행을 제외)
+        Index(
+            "ux_nav_source_message",
+            "source_message_id",
+            unique=True,
+            mssql_where=text("source_message_id IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     company_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_message_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     nav_dt: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
     nav: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
     benchmark: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)

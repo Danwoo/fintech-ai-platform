@@ -7,9 +7,12 @@ class NavRepository:
         self.sql_client = sql_client
 
     def insert_nav(self, args: dict) -> None:
+        # source_message_id 로 멱등 — 같은 메시지의 재소비는 WHERE NOT EXISTS 로 스킵.
+        # 하드 보장은 ux_nav_source_message(필터드 유니크); 이 SELECT 는 정상경로 no-op 삽입 회피.
         sql = """
             INSERT INTO TN_Nav (
                  company_id
+               , source_message_id
                , nav_dt
                , nav
                , benchmark
@@ -20,8 +23,9 @@ class NavRepository:
                , mod_id
                , mod_dt
             )
-            VALUES (
+            SELECT
                  :company_id
+               , :source_message_id
                , CURRENT_TIMESTAMP
                , :nav
                , :benchmark
@@ -31,7 +35,9 @@ class NavRepository:
                , CURRENT_TIMESTAMP
                , :reg_id
                , CURRENT_TIMESTAMP
-            )
+             WHERE NOT EXISTS (
+                   SELECT 1 FROM TN_Nav WHERE source_message_id = :source_message_id
+             )
         """
         with self.sql_client.connect() as conn:
             with conn.begin():
