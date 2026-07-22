@@ -70,7 +70,7 @@ jobs:
   # 라벨이 붙는 순간이 "사람이 답해야 하는 순간"이라는 각 역할 규약(planner 계획 라벨,
   # 지휘자 정책 라벨, 리뷰어 머지 라벨)을 보드의 단일 진입점으로 모은다.
   human-wait-sync:
-    if: ${{ (github.event_name == 'issues' || github.event_name == 'pull_request') && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && (github.event.label.name == 'human: decision' || github.event.label.name == 'human: plan' || github.event.label.name == 'human: merge') }}
+    if: "${{ (github.event_name == 'issues' || github.event_name == 'pull_request') && (github.event.action == 'labeled' || github.event.action == 'unlabeled') && (github.event.label.name == 'human: decision' || github.event.label.name == 'human: plan' || github.event.label.name == 'human: merge') }}"
     runs-on: ubuntu-latest
     steps:
       - name: Sync 사람 대기 column
