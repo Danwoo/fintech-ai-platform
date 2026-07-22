@@ -4,23 +4,65 @@
 tool 호출 자체는 LangGraph 에이전트(ReAct)가 수행 — 이 모듈은 연결·수집·캐싱만.
 """
 
+import asyncio
 import json
+import time
 from datetime import timedelta
 
 from clients.mcp.mcp_auth import ServiceJwtAuth
+from core.logger import logger
 from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
-# tool 목록은 런타임에 변하지 않으므로 한 번 조회 후 캐싱
-_cached_tools: list[BaseTool] | None = None
+# 서버별 tool 캐시 — 성공한 서버만 담긴다. 어댑터의 무인자 get_tools() 는 gather 를
+# return_exceptions 없이 돌려 한 서버 실패가 전체를 raise 하므로, 서버별로 나눠 부분 성공을 허용한다.
+_tools_by_server: dict[str, list[BaseTool]] = {}
+# 아직 못 모은(다운) 서버 재시도 스로틀 — 영구 다운 서버가 매 요청을 timeout 만큼 블록하지 않게.
+_RETRY_COOLDOWN_S = 60.0
+_last_attempt_monotonic: float = 0.0
+_collect_lock = asyncio.Lock()
 
 
 async def get_cached_tools(client: MultiServerMCPClient) -> list[BaseTool]:
-    """tool 목록 일차 캐싱. 매 호출 반복 조회 방지."""
-    global _cached_tools
-    if _cached_tools is None:
-        _cached_tools = await client.get_tools()
-    return _cached_tools
+    """서버별 tool 을 부분 성공 허용으로 수집·캐싱한다.
+
+    아직 캐시 안 된 서버만 조회하므로 (1) 한 서버가 잠깐 다운돼도 정상 서버 tool 은 보존되고
+    (2) 다음 호출에서 실패했던 서버만 재시도돼 복구된다. 재시도는 쿨다운으로 스로틀링해
+    영구 다운 서버가 매 호출을 블록하지 않게 한다. 전량 수집되면 이후 호출은 네트워크 없이 캐시 반환.
+    """
+    global _last_attempt_monotonic
+    server_names = list(client.connections.keys())
+    if _pending(server_names) and _cooldown_elapsed():
+        async with _collect_lock:
+            # 락 대기 중 앞선 호출이 이미 수집했을 수 있어 재확인.
+            pending = _pending(server_names)
+            if pending and _cooldown_elapsed():
+                _last_attempt_monotonic = time.monotonic()
+                results = await asyncio.gather(
+                    *(client.get_tools(server_name=name) for name in pending),
+                    return_exceptions=True,
+                )
+                for name, result in zip(pending, results, strict=True):
+                    if isinstance(result, BaseException):
+                        logger.warning(
+                            "[mcp_client] '%s' MCP tool 수집 실패 — 이번 수집 제외, 최대 %ds 후 재시도: %r",
+                            name,
+                            int(_RETRY_COOLDOWN_S),
+                            result,
+                        )
+                        continue
+                    _tools_by_server[name] = result
+    return [tool for name in server_names if name in _tools_by_server for tool in _tools_by_server[name]]
+
+
+def _pending(server_names: list[str]) -> list[str]:
+    """아직 성공 수집 안 된 서버 목록."""
+    return [name for name in server_names if name not in _tools_by_server]
+
+
+def _cooldown_elapsed() -> bool:
+    """마지막 수집 시도 이후 쿨다운이 지났는지 (기동 직후 최초 시도는 항상 허용)."""
+    return (time.monotonic() - _last_attempt_monotonic) >= _RETRY_COOLDOWN_S
 
 
 def collect_tool_examples(tools: list[BaseTool]) -> str:

@@ -78,12 +78,7 @@ class AgentService:
 
     async def initialize(self) -> None:
         """MCP tool 수집 + domain registry 캐싱. lifespan 1회. 그래프는 요청마다 _build_graph."""
-        try:
-            tools = await get_cached_tools(self._mcp_client)
-        except Exception as e:
-            logger.warning("[AgentService] MCP tool 수집 실패 (%s) — 도구 0개로 기동", e)
-            tools = []
-        self._tool_map = {t.name: t for t in tools}
+        await self._refresh_tool_map()
         self._subagent_registry, self._domain_registry = load_domain_registry(self._config.MULTI_AGENT_DOMAINS)
         logger.info(
             "[AgentService] 캐싱 완료: MCP tools %d개, 도메인 %d개",
@@ -91,6 +86,19 @@ class AgentService:
             len(self._domain_registry),
         )
         self._init_langfuse()
+
+    async def _refresh_tool_map(self) -> None:
+        """MCP tool 을 재수집해 tool_map 을 갱신한다. 기동 시 다운됐던 서버가 살아나면
+        다음 요청에서 tool 이 그래프에 반영되도록 _build_graph 가 매 요청 호출한다.
+
+        get_cached_tools 는 서버별 캐시라 수집값이 늘거나 유지만 될 뿐 줄지 않으므로(플래핑 없음),
+        전량 수집 후에는 네트워크 없이 캐시를 반환해 사실상 no-op 이다."""
+        try:
+            tools = await get_cached_tools(self._mcp_client)
+        except Exception as e:
+            logger.warning("[AgentService] MCP tool 수집 실패 (%s) — 현 tool_map 유지", e)
+            return
+        self._tool_map = {t.name: t for t in tools}
 
     def _init_langfuse(self) -> None:
         """langfuse 키 3종이 모두 있으면 client 를 초기화한다 — 이후 graph 실행이 langfuse 로 trace 된다."""
@@ -105,7 +113,8 @@ class AgentService:
         return [CallbackHandler()] if self._langfuse_enabled else []
 
     async def _build_graph(self, enabled_mcps: set[str]):
-        """enabled MCP 의 tool 만 바인딩한 Plan-Execute 그래프 구성 (요청마다, LLM·IO 없음)."""
+        """enabled MCP 의 tool 만 바인딩한 Plan-Execute 그래프 구성 (요청마다)."""
+        await self._refresh_tool_map()  # 기동 시 다운됐던 MCP 서버 복구분을 반영 (전량 수집 후 no-op)
         tool_map = filter_tool_map(self._tool_map, enabled_mcps)
         sub_agents = await create_sub_agents(
             router_llm=self._router_llm,
