@@ -1,4 +1,4 @@
-from core.auth_context import require_company_id
+from core.auth_context import require_company_id, set_auth_context
 from core.exceptions import ConflictError, NotFoundError
 from core.logger import logger
 from repositories.scheduler.scheduler_repository import SchedulerRepository
@@ -80,6 +80,9 @@ class SchedulerService:
             members = self.scheduler_repository.select_members_for_job(scheduler_id)
             if not members:
                 return
+            # cron 은 요청 밖이라 신원 컨텍스트가 비어 있다 — 하류 MCP on-behalf 토큰이 스케줄러 소속
+            # 회사로 스코핑되도록 company_id 를 컨텍스트에 실어 준다 (없으면 portfolio-mcp 가 fail-closed).
+            set_auth_context(user_id=None, role=None, company_id=scheduler["company_id"])
             since, until = self.activity_report_service.period(scheduler["period_weeks"])
             async for msg in self.activity_report_service.generate_for(members, since, until):
                 logger.info(f"[스케줄러 {scheduler_id}] {msg}")

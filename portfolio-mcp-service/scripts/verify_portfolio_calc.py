@@ -23,6 +23,7 @@ from pathlib import Path
 os.environ.setdefault("JWT_SECRET", "verify-secret")
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
 
+from core.auth_context import set_auth_context  # noqa: E402
 from core.container import Container  # noqa: E402
 
 problems: list[str] = []
@@ -35,9 +36,11 @@ def check(name: str, cond: bool) -> None:
 
 async def run_checks() -> None:
     svc = Container().portfolio_service()
+    # 회사 1 은 ACC-1001(KRW)·ACC-1002(USD) 소유 — 통화 혼재 계약을 그대로 검사할 수 있는 테넌트.
+    set_auth_context(user_id="verify", role="admin", company_id=1)
 
     # (1)+(2) list_holdings — 통화별 분리, 스칼라 부재, 버킷 정확성
-    h = await svc.list_holdings()  # account_id=None → 전체 계좌(KRW+USD 혼재)
+    h = await svc.list_holdings()  # account_id=None → 내 계좌 전체(KRW+USD 혼재)
     check("holdings: 스칼라 total_market_value 제거됨", "total_market_value" not in h)
     check("holdings: total_market_value_by_currency 존재", "total_market_value_by_currency" in h)
     by_ccy = h.get("total_market_value_by_currency", {})

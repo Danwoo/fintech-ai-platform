@@ -77,8 +77,11 @@ class SchedulerRepository:
             return [dict(r) for r in conn.execute(text(sql)).mappings().all()]
 
     def select_scheduler_for_job(self, scheduler_id: str) -> dict | None:
-        """cron 실행 시점 — 집계기간 산정용. scheduler_id 전역 유일이라 테넌트 무관 (요청 밖 시스템 경로)."""
-        sql = "SELECT scheduler_id, period_weeks FROM TN_Scheduler WHERE scheduler_id = :scheduler_id"
+        """cron 실행 시점 — 집계기간·소속 테넌트(company_id) 산정용. scheduler_id 전역 유일이라 조회는 테넌트 무관.
+
+        company_id 는 요청 밖 cron 경로가 하류 MCP 를 스케줄러 소속 회사로 스코핑(on-behalf 토큰)하기 위해 싣는다.
+        """
+        sql = "SELECT scheduler_id, company_id, period_weeks FROM TN_Scheduler WHERE scheduler_id = :scheduler_id"
         with self.sql_client.connect() as conn:
             row = conn.execute(text(sql), {"scheduler_id": scheduler_id}).mappings().fetchone()
             return dict(row) if row else None

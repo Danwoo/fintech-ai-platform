@@ -5,12 +5,12 @@ MCP streamable-http 는 매 요청마다 별도 HTTP 요청을 보내므로, 세
 """
 
 import httpx
-from core.security import create_access_token
+from core.mcp_token import create_onbehalf_service_token
 
 
 class ServiceJwtAuth(httpx.Auth):
-    """요청마다 fresh 서비스 JWT(exp 1분) 주입."""
+    """요청마다 fresh 서비스 JWT(exp 1분) 주입. 요청자 테넌트(company_id)를 실어 하류 MCP 가 테넌트 격리를 강제하게 한다."""
 
     def auth_flow(self, request: httpx.Request):
-        request.headers["Authorization"] = f"Bearer {create_access_token()}"
+        request.headers["Authorization"] = f"Bearer {create_onbehalf_service_token()}"
         yield request

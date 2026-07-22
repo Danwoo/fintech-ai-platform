@@ -1,5 +1,5 @@
 # routers/scheduler/scheduler_router.py
-from core.auth_context import get_email
+from core.auth_context import get_email, set_auth_context
 from core.authorization import ROLE_ADMIN, ROLE_OPERATOR, require_role, require_user
 from core.container import Container
 from core.logger import logger
@@ -181,9 +181,13 @@ async def run_scheduler_now(
     if not members:
         return MessageOut(message="등록된 발송 대상이 없습니다. 참여 멤버를 먼저 등록해 주세요.", level="warning")
     since, until = activity_report_service.period(scheduler["period_weeks"])
+    company_id = scheduler["company_id"]  # 소유 검증된 스케줄러의 회사 — 백그라운드 태스크에서 신원 컨텍스트 복원용
 
     async def _run() -> None:
         try:
+            # 백그라운드 태스크는 요청 신원 컨텍스트를 보장받지 못한다 — 하류 MCP on-behalf 토큰이
+            # 스케줄러 소속 회사로 스코핑되도록 company_id 를 명시 복원한다 (cron 경로와 동일).
+            set_auth_context(user_id=None, role=None, company_id=company_id)
             async for _msg in activity_report_service.generate_for(members, since, until):
                 pass
         except Exception as e:
