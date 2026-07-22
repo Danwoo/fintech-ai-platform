@@ -5,6 +5,8 @@ from core.logger import logger
 from repositories.message_queue.message_queue_repository import MessageQueueRepository
 from services.nav.nav_service import NavService
 
+MAX_RETRIES = 5  # 일시 오류 재시도 상한 — 소진 시 터미널 'failed'(데드레터)
+
 
 class MessageQueueService:
     def __init__(self, message_queue_repository: MessageQueueRepository, nav_service: NavService):
@@ -23,18 +25,33 @@ class MessageQueueService:
         for message in messages:
             try:
                 self._dispatch(message)
-                self.message_queue_repository.mark_done({"id": message["id"], "mod_id": "system"})
-                processed += 1
             except Exception as e:
                 self.message_queue_repository.mark_failed(
-                    {"id": message["id"], "error": str(e)[:500], "mod_id": "system"}
+                    {
+                        "id": message["id"],
+                        "error": str(e)[:500],
+                        "max_retries": MAX_RETRIES,
+                        "mod_id": "system",
+                    }
                 )
+                continue
+
+            # dispatch 성공 후에만 터미널 done — mark_done 이 실패해도 실패로 오분류하지 않는다.
+            # 이때 메시지는 pending 으로 남아 다음 폴에서 멱등 재소비된다(_dispatch 가 멱등).
+            try:
+                self.message_queue_repository.mark_done({"id": message["id"], "mod_id": "system"})
+                processed += 1
+            except Exception:
+                logger.exception(f"MQ_MARK_DONE_FAILED id={message['id']} — will re-consume idempotently")
         return processed
 
     def _dispatch(self, message: dict) -> None:
-        """메시지 소비 — topic 별 핸들러 라우팅 (신규 topic 은 여기 분기 추가)"""
+        """메시지 소비 — topic 별 핸들러 라우팅 (신규 topic 은 여기 분기 추가).
+
+        핸들러는 message id 로 멱등해야 한다 — at-least-once 라 크래시/재기동 시 재호출될 수 있다.
+        """
         topic = message["topic"]
         if topic == "nav.snapshot":
-            self.nav_service.record_snapshot(json.loads(message["payload"]))
+            self.nav_service.record_snapshot(json.loads(message["payload"]), message["id"])
         else:
             logger.info(f"MQ_CONSUME id={message['id']} topic={topic}")

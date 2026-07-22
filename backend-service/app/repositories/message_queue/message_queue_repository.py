@@ -64,10 +64,15 @@ class MessageQueueRepository:
                 conn.execute(text(sql), args)
 
     def mark_failed(self, args: dict) -> None:
+        # 비터미널 재시도 — 재시도 여력이 남으면 'pending' 으로 되돌려 재소비 대상 유지,
+        # max_retries 소진 시에만 터미널 'failed'(데드레터). retry_count 가 실제 시도 횟수로 산다.
         sql = """
             UPDATE TN_MessageQueue
-               SET status = 'failed'
-                 , retry_count = retry_count + 1
+               SET retry_count = retry_count + 1
+                 , status = CASE
+                              WHEN retry_count + 1 >= :max_retries THEN 'failed'
+                              ELSE 'pending'
+                            END
                  , error = :error
                  , mod_id = :mod_id
                  , mod_dt = CURRENT_TIMESTAMP
