@@ -4,6 +4,8 @@ services:
     build:
       context: ./file-service
     image: fullstack-file:latest
+    env_file:
+      - ./file-service/app/.env.production
     networks:
       - fullstack
       - sftp
@@ -34,6 +36,8 @@ services:
     build:
       context: ./backend-service
     image: fullstack-backend:latest
+    env_file:
+      - ./backend-service/app/.env.production
     networks:
       - fullstack
       - mssql
@@ -63,6 +67,8 @@ services:
     build:
       context: ./devactivity-service
     image: fullstack-devactivity:latest
+    env_file:
+      - ./devactivity-service/app/.env.production
     networks:
       - fullstack
       - mssql
@@ -94,6 +100,8 @@ services:
     build:
       context: ./portfolio-mcp-service
     image: fullstack-portfolio-mcp:latest
+    env_file:
+      - ./portfolio-mcp-service/app/.env.production
     networks:
       - fullstack
       - victorialogs
@@ -121,6 +129,8 @@ services:
     build:
       context: ./multi-agent-service
     image: fullstack-multi-agent:latest
+    env_file:
+      - ./multi-agent-service/app/.env.production
     networks:
       - fullstack
       - victorialogs
@@ -159,6 +169,8 @@ services:
     build:
       context: ./market-data-mcp-service
     image: fullstack-market-data-mcp:latest
+    env_file:
+      - ./market-data-mcp-service/app/.env.production
     networks:
       - fullstack
       - victorialogs
@@ -186,6 +198,8 @@ services:
     build:
       context: ./disclosure-mcp-service
     image: fullstack-disclosure-mcp:latest
+    env_file:
+      - ./disclosure-mcp-service/app/.env.production
     networks:
       - fullstack
       - victorialogs
@@ -213,6 +227,8 @@ services:
     build:
       context: ./news-mcp-service
     image: fullstack-news-mcp:latest
+    env_file:
+      - ./news-mcp-service/app/.env.production
     networks:
       - fullstack
       - victorialogs
@@ -240,6 +256,8 @@ services:
     build:
       context: ./web-mcp-service
     image: fullstack-web-mcp:latest
+    env_file:
+      - ./web-mcp-service/app/.env.production
     networks:
       - fullstack
       - victorialogs
@@ -267,6 +285,8 @@ services:
     build:
       context: ./doc-search-mcp-service
     image: fullstack-doc-search-mcp:latest
+    env_file:
+      - ./doc-search-mcp-service/app/.env.production
     networks:
       - fullstack
       - victorialogs
