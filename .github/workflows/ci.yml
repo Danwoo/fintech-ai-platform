@@ -243,3 +243,19 @@ jobs:
       - name: Scheduler gating check
         working-directory: devactivity-service
         run: uv run python scripts/verify_scheduler_gating.py
+
+  # 멀티턴 히스토리 상한 + 인젝션 재주입 우회 차단 계약 (로드 캡·chokepoint envelope/무력화 — #85)
+  history-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: History guard check
+        working-directory: multi-agent-service
+        run: uv run python scripts/verify_history_guard.py

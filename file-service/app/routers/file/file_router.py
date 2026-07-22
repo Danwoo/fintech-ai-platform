@@ -27,6 +27,7 @@ from schemas.file.file_schema import (
 )
 from services.file.file_service import FileService
 from utils.common.devextreme_utils import parse_filter_sort
+from utils.common.file_utils import SAFE_INLINE_MEDIA_TYPES
 
 router = APIRouter(prefix="/file", tags=["file"])
 
@@ -256,7 +257,15 @@ async def select_file_detail_for_image_preview(
 
     try:
         content, media_type = await file_service.select_file_detail_for_image_preview(args)
-        return StreamingResponse(io.BytesIO(content), media_type=media_type)
+        # 안전 래스터만 인라인 렌더, 그 외(레거시 SVG 등)는 강제 다운로드.
+        # nosniff + CSP sandbox 로 인라인으로 새더라도 스크립트 실행/스니핑 차단 (저장형 XSS 방어).
+        disposition = "inline" if media_type in SAFE_INLINE_MEDIA_TYPES else "attachment"
+        headers = {
+            "Content-Disposition": disposition,
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+        }
+        return StreamingResponse(io.BytesIO(content), media_type=media_type, headers=headers)
     except asyncio.CancelledError as e:
         raise HTTPException(status_code=status.HTTP_499_CLIENT_CLOSED_REQUEST, detail="Request cancelled") from e
 

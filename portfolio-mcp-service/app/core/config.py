@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     BROKERAGE_API_BASE_URL: str = ""  # 예: https://api.broker.example.com/v1
     BROKERAGE_API_TOKEN: str = ""  # 브로커리지 read 토큰 (Bearer)
 
+    # 환율(FX) 소스 — market-data-mcp 의 /market/fx REST. 기준통화 환산 시에만 호출(실패는 fail-soft → unconverted).
+    # 빈 값이면 FX 조회 비활성(교차통화는 전부 unconverted). market-data-mcp 는 기본 MOCK 환율 반환.
+    MARKET_DATA_MCP_URL: str = "http://localhost:8004"
+
     model_config = SettingsConfigDict(
         env_file=f".env.{os.getenv('APP_ENV', 'production')}",
         env_file_encoding="utf-8",

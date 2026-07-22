@@ -32,12 +32,20 @@ def check(name: str, cond: bool) -> None:
         problems.append(name)
 
 
+class _StubFx:
+    """FX 환산은 격리 검사와 무관 — 네트워크(market-data-mcp) 없이 hermetic 하게 빈 환율만 반환."""
+
+    async def fetch_rates(self, pairs: set[str]) -> dict[str, dict]:
+        return {}
+
+
 def as_tenant(company_id: int | None) -> None:
     set_auth_context(user_id="verify", role="admin", company_id=company_id)
 
 
 async def run_checks() -> None:
     svc = Container().portfolio_service()
+    svc.fx_client = _StubFx()  # 격리 검사는 FX 값과 무관 — 네트워크 제거
 
     # (1) 계좌 목록이 테넌트로 스코핑 — 회사 1 은 ACC-1001·1002 만, 회사 2 는 ACC-1003 만.
     as_tenant(1)

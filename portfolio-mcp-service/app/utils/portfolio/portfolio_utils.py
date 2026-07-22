@@ -6,21 +6,115 @@ IO/DB 없는 순수 함수만 모은다(서비스에서 분리 → 단위 테스
 """
 
 from datetime import UTC, datetime, timedelta
+from decimal import ROUND_HALF_UP, Decimal
 
 from utils.common.time_utils import parse_iso_to_kst
 from utils.redaction.redactor import redact_secrets
 
 _DEFAULT_QUERY_DAYS = 30  # since 미지정 시 최근 30일
 _MIN_AWARE_DATETIME = datetime.min.replace(tzinfo=UTC)
+_ZERO = Decimal("0")
+
+
+def _dec(value) -> Decimal:
+    """float/int/str → Decimal. 금액 계산은 이진 float 오차·중간 반올림 드리프트를 피해 Decimal 로 한다."""
+    return Decimal(str(value or 0))
+
+
+def _round2(value: Decimal) -> float:
+    """계산 경계에서 2자리로 한 번만 반올림해 float 로 반환한다 (스키마·tool 계약은 float 유지)."""
+    return float(value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
+def market_value_dec(quantity, last_price) -> Decimal:
+    """평가금액(수량×현재가)을 full precision Decimal 로. 표시·합산이 모두 이 값에서 파생(중간 반올림 없음)."""
+    return _dec(quantity) * _dec(last_price)
 
 
 def sum_by_currency(lines: list[dict], value_key: str) -> dict[str, float]:
-    """lines 의 value_key 를 통화별로 합산. 환율 없이 통화를 섞어 더하면 무의미하므로 통화별로 분리한다."""
-    totals: dict[str, float] = {}
+    """lines 의 value_key 를 통화별로 합산. 환율 없이 통화를 섞어 더하면 무의미하므로 통화별로 분리한다.
+
+    누적은 Decimal 로 하고 통화별 버킷마다 한 번만 반올림한다 (중간 float 누적 드리프트 방지).
+    """
+    totals: dict[str, Decimal] = {}
     for line in lines:
         ccy = line.get("currency") or "KRW"
-        totals[ccy] = totals.get(ccy, 0.0) + float(line.get(value_key) or 0)
-    return {ccy: round(v, 2) for ccy, v in totals.items()}
+        totals[ccy] = totals.get(ccy, _ZERO) + _dec(line.get(value_key))
+    return {ccy: _round2(v) for ccy, v in totals.items()}
+
+
+def sum_market_value_by_currency(lines: list[dict]) -> dict[str, float]:
+    """보유 라인의 평가금액을 통화별로 합산한다. 표시용으로 반올림된 line["market_value"] 가 아니라
+    수량×현재가 full precision 을 통화별로 누적한 뒤 한 번만 반올림한다 (라인별 반올림 드리프트 방지)."""
+    totals: dict[str, Decimal] = {}
+    for line in lines:
+        ccy = line.get("currency") or "KRW"
+        totals[ccy] = totals.get(ccy, _ZERO) + market_value_dec(line.get("quantity"), line.get("last_price"))
+    return {ccy: _round2(v) for ccy, v in totals.items()}
+
+
+def assign_weights(lines: list[dict]) -> None:
+    """각 라인의 weight(%) = 평가금액 / 계좌 평가자산 × 100 을 채운다 (in-place).
+
+    계좌 평가자산·분자 모두 full precision 평가금액에서 계산한다. 평가자산 0(빈/전액현금)은 0 으로 안전 처리.
+    """
+    acc_total = sum((market_value_dec(line.get("quantity"), line.get("last_price")) for line in lines), _ZERO)
+    for line in lines:
+        mv = market_value_dec(line.get("quantity"), line.get("last_price"))
+        line["weight"] = _round2(mv / acc_total * 100) if acc_total else 0.0
+
+
+def nav_by_currency(base_currency: str, cash: float, holdings: list[dict]) -> dict[str, float]:
+    """통화별 순자산가치(환율 환산 없음). 예수금은 기준통화 버킷, 보유분은 종목통화 버킷에 full precision 누적."""
+    totals: dict[str, Decimal] = {base_currency: _dec(cash)}
+    for h in holdings:
+        ccy = h.get("currency") or base_currency
+        totals[ccy] = totals.get(ccy, _ZERO) + market_value_dec(h.get("quantity"), h.get("last_price"))
+    return {ccy: _round2(v) for ccy, v in totals.items()}
+
+
+def fx_pairs_for(currencies, base_currency: str) -> set[str]:
+    """기준통화로 환산하려면 필요한 통화쌍 집합 ('{통화}/{기준통화}'). 기준통화 자신은 제외(환율 불필요)."""
+    return {f"{c}/{base_currency}" for c in currencies if c and c != base_currency}
+
+
+def select_rates(fetched: dict[str, dict], currencies, base_currency: str) -> tuple[dict[str, float], dict[str, dict]]:
+    """조회된 환율맵에서 필요한 통화의 환율만 골라 (rates, fx_rates_used) 로 정리한다.
+
+    rates[통화] = 1 단위 통화의 기준통화 값. fx_rates_used[pair] = {rate, asof} (근거 노출용).
+    없는 통화쌍은 지어내지 않고 그냥 빠진다 (호출측이 unconverted 로 표기).
+    """
+    rates: dict[str, float] = {}
+    used: dict[str, dict] = {}
+    for ccy in currencies:
+        if not ccy or ccy == base_currency:
+            continue
+        pair = f"{ccy}/{base_currency}"
+        row = fetched.get(pair)
+        if row and row.get("rate") is not None:
+            rates[ccy] = float(row["rate"])
+            used[pair] = {"rate": float(row["rate"]), "asof": row.get("asof") or ""}
+    return rates, used
+
+
+def convert_to_base(
+    by_currency: dict[str, float], base_currency: str, rates: dict[str, float]
+) -> tuple[float, list[str]]:
+    """통화별 합계를 기준통화로 환산 합산한다. rates[통화]=1 단위 통화의 기준통화 값(같은 통화는 자동 1.0).
+
+    환율 없는 통화는 지어내지 않고 unconverted 로 반환하며 합산에서 제외한다 (역수·삼각환산 안 함).
+    반환된 합계는 환산 가능한 통화만의 합이므로 unconverted 가 비어야 전체를 포괄한다.
+    """
+    total = _ZERO
+    unconverted: list[str] = []
+    for ccy, amount in by_currency.items():
+        if ccy == base_currency:
+            total += _dec(amount)
+        elif ccy in rates:
+            total += _dec(amount) * _dec(rates[ccy])
+        else:
+            unconverted.append(ccy)
+    return _round2(total), sorted(unconverted)
 
 
 def norm_since(s: str | None, now) -> str:
@@ -55,8 +149,9 @@ def holding_line(account_id: str, h: dict) -> dict:
     qty = float(h.get("quantity") or 0)
     avg = float(h.get("avg_price") or 0)
     last = float(h.get("last_price") or 0)
-    market_value = round(qty * last, 2)
-    unrealized = round(market_value - avg * qty, 2)
+    mv = market_value_dec(qty, last)
+    market_value = _round2(mv)
+    unrealized = _round2(mv - _dec(avg) * _dec(qty))
     return {
         "account_id": account_id,
         "ticker": h.get("ticker") or "",
