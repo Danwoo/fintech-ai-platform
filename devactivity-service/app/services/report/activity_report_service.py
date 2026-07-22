@@ -40,7 +40,7 @@ class ActivityReportService:
         self.mail_client = mail_client
 
     async def generate_for(self, members: list[dict], since: datetime, until: datetime) -> AsyncGenerator[str, None]:
-        """멤버에게 [since, until] 요약 발송. 주별 조회·요약 후 멤버당 주차별 섹션을 한 통에 묶어 발송."""
+        """멤버에게 [since, until] 요약 발송. 주별·계좌별 조회 후 멤버당 주차별 섹션을 한 통에 묶어 발송."""
         weeks = max(1, (until - since).days // 7)
         period = f"{since:%Y-%m-%d} ~ {until:%Y-%m-%d}"
         yield f"집계 기간: {period} ({weeks}주)"
@@ -48,53 +48,77 @@ class ActivityReportService:
             yield "발송 대상이 없습니다."
             return
 
-        account_ids = [m["account_id"] for m in members]
-        sections: dict[str, list[tuple[str, ActivitySummaries]]] = {m["email"]: [] for m in members}
+        # tool 은 단일 계좌 계약(account_id) — 유니크 계좌당 1회 호출하고 공유 멤버는 결과 재사용
+        account_ids = list(dict.fromkeys(m["account_id"] for m in members))
+        by_email: dict[str, list[dict]] = {}
+        for m in members:
+            entries = by_email.setdefault(m["email"], [])
+            if all(e["account_id"] != m["account_id"] for e in entries):
+                entries.append(m)
+
+        sections: dict[str, list[tuple[str, ActivitySummaries]]] = {email: [] for email in by_email}
+        missing_reported: set[str] = set()
         for w in range(weeks):
             ws = since + timedelta(weeks=w)
             label = f"{w + 1}주차 ({ws:%m-%d} ~ {(ws + timedelta(days=6)):%m-%d})"
             yield f"{label} 활동 조회 중..."
-            try:
-                result = await call_mcp_tool(
-                    self.mcp_client,
-                    "portfolio_get_account_activity",
-                    {
-                        "since": ws.isoformat(),
-                        "until": (ws + timedelta(weeks=1)).isoformat(),
-                        "account_ids": account_ids,
-                    },
-                )
-            except Exception as e:
-                logger.warning("[활동요약] %s 활동 조회 실패 — %s", label, e)
-                yield f"{label} 조회 실패 — {e}"
-                continue
-            activities = result.get("activities", result.get("items", []))
-            for member in members:
-                by_portfolio = dedupe_common(collect(activities, member))
+            week_events: dict[str, list[dict]] = {}
+            for account_id in account_ids:
+                try:
+                    result = await call_mcp_tool(
+                        self.mcp_client,
+                        "portfolio_get_account_activity",
+                        {
+                            "account_id": account_id,
+                            "since": ws.isoformat(),
+                            "until": (ws + timedelta(weeks=1)).isoformat(),
+                        },
+                    )
+                except Exception as e:
+                    logger.warning("[활동요약] %s 계좌 %s 조회 실패 — %s", label, account_id, e)
+                    yield f"{label} 계좌 {account_id} 조회 실패 — {e}"
+                    continue
+                if not result.get("found"):
+                    # 미존재와 타 테넌트 소유 모두 found=False (존재 오라클 차단) — '활동 0건' 과 구분해 표면화
+                    if account_id not in missing_reported:
+                        missing_reported.add(account_id)
+                        logger.warning("[활동요약] 계좌 미확인 — %s (미존재 또는 타 테넌트 소유)", account_id)
+                        yield f"계좌 미확인 — {account_id}: 미존재 또는 타 테넌트 소유, 멤버 등록 정보 확인 필요"
+                    continue
+                if result.get("truncated"):
+                    logger.warning("[활동요약] %s 계좌 %s 활동이 최대 건수를 초과해 잘림", label, account_id)
+                week_events[account_id] = result.get("events", [])
+
+            for email, email_members in by_email.items():
+                by_portfolio: dict[str, list[str]] = {}
+                for member in email_members:
+                    account_id = member["account_id"]
+                    for group, lines in collect(week_events.get(account_id, []), account_id).items():
+                        by_portfolio.setdefault(group, []).extend(lines)
+                by_portfolio = dedupe_common(by_portfolio)
                 if not by_portfolio:
                     continue
                 try:
                     summaries = await self._summarize(by_portfolio)
-                    sections[member["email"]].append((label, summaries))
+                    sections[email].append((label, summaries))
                 except Exception as e:
-                    logger.warning("[활동요약] %s %s 요약 실패 — %s", member["email"], label, e)
-                    yield f"{member['email']}: {label} 요약 실패 — {e}"
+                    logger.warning("[활동요약] %s %s 요약 실패 — %s", email, label, e)
+                    yield f"{email}: {label} 요약 실패 — {e}"
 
-        for member in members:
-            weekly = sections[member["email"]]
+        for email, weekly in sections.items():
             if not weekly:
-                yield f"{member['email']}: 해당 기간 활동 없음 — 생략"
+                yield f"{email}: 해당 기간 활동 없음 — 생략"
                 continue
             try:
                 await self.mail_client.send_html(
-                    member["email"],
+                    email,
                     f"[포트폴리오 활동 요약] {period}",
                     render_html(period, weekly),
                 )
-                yield f"{member['email']}: 섹션 {len(weekly)}개 발송 완료"
+                yield f"{email}: 섹션 {len(weekly)}개 발송 완료"
             except Exception as e:
-                logger.warning("[활동요약] %s 발송 실패 — %s", member["email"], e)
-                yield f"{member['email']}: 발송 실패 — {e}"
+                logger.warning("[활동요약] %s 발송 실패 — %s", email, e)
+                yield f"{email}: 발송 실패 — {e}"
 
         yield "전체 완료"
 

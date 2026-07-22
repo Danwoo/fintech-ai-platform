@@ -244,6 +244,22 @@ jobs:
         working-directory: devactivity-service
         run: uv run python scripts/verify_scheduler_gating.py
 
+  # devactivity 활동요약 ↔ portfolio-mcp account-activity tool 계약 (단수 account_id 실스키마 검증·events 소비·found=False 표면화 — #114)
+  activity-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Activity report contract check
+        working-directory: devactivity-service
+        run: uv run python scripts/verify_activity_report.py
+
   # 멀티턴 히스토리 상한 + 인젝션 재주입 우회 차단 계약 (로드 캡·chokepoint envelope/무력화 — #85)
   history-guard:
     runs-on: ubuntu-latest
