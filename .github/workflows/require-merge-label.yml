@@ -1,0 +1,30 @@
+# require-merge-label — 리뷰 없는 머지를 구조적으로 차단 (하네스: 리뷰-머지 경합 방지)
+#
+# PR 에 `머지 대기` 라벨(= 독립 리뷰 통과 신호)이 없으면 이 체크가 fail 한다.
+# branch protection 에서 이 체크를 required 로 걸면, 라벨 없는 PR 은 머지 버튼이 잠긴다.
+# → "리뷰 후 머지" 가 소프트 귀띔이 아니라 구조가 된다 (병렬 속도에서도 리뷰가 안 빠진다).
+#
+# 배포: 대상 레포 .github/workflows/ 에 복사 + main 브랜치 보호에서 job 'merge-label' 을 required 로.
+# 기본 GITHUB_TOKEN 으로 충분 (PR 라벨 읽기만).
+
+name: require-merge-label
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  merge-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 머지 대기 라벨(독립 리뷰 통과) 필수
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, '|') }}
+        run: |
+          case "|$LABELS|" in
+            *"|머지 대기|"*) echo "✓ 독립 리뷰 통과(머지 대기) 확인 — 머지 허용"; exit 0 ;;
+            *) echo "::error::'머지 대기' 라벨 없음 — 독립 리뷰 통과 후 머지하라 (리뷰-머지 경합 방지)"; exit 1 ;;
+          esac
