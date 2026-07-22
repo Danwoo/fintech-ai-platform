@@ -22,7 +22,9 @@ class Container(containers.DeclarativeContainer):
     sql_client = providers.Singleton(get_multi_agent_sql_client, config)
 
     # Repository
-    chat_history_repository = providers.Factory(ChatHistoryRepository, sql_client=sql_client)
+    chat_history_repository = providers.Factory(
+        ChatHistoryRepository, sql_client=sql_client, max_turns=settings.MA_HISTORY_MAX_TURNS
+    )
 
     # Service — 그래프 상태 보유(initialize 1회) + 레이트리밋/캐시도 프로세스 단일 상태라 Singleton
     response_cache = providers.Singleton(ResponseCache, config)
