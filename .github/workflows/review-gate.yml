@@ -50,6 +50,7 @@ jobs:
   # 'review-gate'(진짜 게이트, 아래 gh api statuses 로 올림)와 헷갈리지 않게 분리한다.
   # ⚠ 커밋 상태 context=review-gate 는 branch protection 이 required 로 지정한 이름 — 불변.
   sync-review-gate:
+    name: "chore: review-gate-sync"
     runs-on: ubuntu-latest
     steps:
       - name: 리뷰 라벨 ↔ 커밋 상태 동기화
