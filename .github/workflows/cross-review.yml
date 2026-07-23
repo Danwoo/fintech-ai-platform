@@ -49,7 +49,9 @@
 #      트리거하지 않아 review-gate·merge-router 가 깨어나지 않는다 (GitHub 재귀 방지).
 #      PROJECT_TOKEN 은 board-status 가 이미 쓰는 classic PAT(repo+project 스코프) 재사용 —
 #      신규 PAT 발급 없음 (사용자 확정). 부재 시 폴백 부착 + 경고 — 게이트는 pending 에 머무는
-#      fail-closed 정체
+#      fail-closed 정체. 부착·제거는 **REST(issues/labels) 경유** — classic PAT 에 read:org 가
+#      없어 `gh pr edit --add-label` 의 GraphQL 라벨 조회가 스코프 오류로 실패한다
+#      (실측: merge-router run 29984682991, R2 1차 2026-07-23. REST 는 repo 스코프로 충분)
 #   4) 판정 라벨 부착 자격은 **identity_source=commit-email 뿐이다** — 브랜치명 단독 판별·
 #      판별 불가·혼재 PR 은 판정 라벨을 붙이지 않는다 (참고 코멘트만) → 자연히 사람 경로.
 #      docs-only PR 은 트리거 자체 제외 (T1 결정 3 전)
@@ -65,6 +67,10 @@
 #   (gate declare 방출). 부재·이슈 없음 → 고위험 취급 (fail-closed, 설계 상수 2).
 #   ⚠ 머지 경로의 위험 판정은 merge-router 가 자기 시점에 **재판독**한다 — 여기 판독은
 #   리뷰어 라우팅(고위험 claude 작성분 → codex)과 코멘트 표기에만 쓴다 (판정 캐시 금지 원칙).
+#   이슈 연결 판독의 경계 (R2 1차 문서화, 2026-07-23 — 결함 아님): closingIssuesReferences 는
+#   **closing 키워드(Closes/Fixes/Resolves)만** 잡는다. "Refs #N" 만 쓴 PR 은 이슈 없음 판독 →
+#   fail-closed 고위험 + 계획 코멘트 취득(plan-comments.md)도 공백이 된다 — 의도된 안전 방향.
+#   자동 경로에 태우려면 PR 본문에 Closes #N (worker 스킬 PR 규약에 동일 명시).
 #
 # 리뷰어 라우팅 (§9 배정표): kimi 작성 → claude / claude 작성 → kimi (고위험은 codex —
 #   단 한도 복귀 ~2026-08-08 까지 레포 변수 CROSS_REVIEW_CODEX≠on 이면 kimi 로 대체, 게이트는
@@ -872,6 +878,8 @@ jobs:
           fi
 
           # 4) 판정 라벨 — PROJECT_TOKEN(PAT — board-status 용 재사용) 으로 (계약 3). 부착 직전 head 재확인 (계약 2)
+          #    REST(issues/labels) 경유 — classic PAT 에 read:org 가 없어 gh pr edit --add-label 의
+          #    GraphQL 라벨 조회가 스코프 오류로 실패한다 (계약 3 · merge-router run 29984682991 실측)
           if [ "$ATTACH" = "yes" ]; then
             LABEL_TOKEN="${PROJECT_TOKEN:-}"
             if [ -z "$LABEL_TOKEN" ]; then
@@ -885,13 +893,13 @@ jobs:
             fi
             case "$VERDICT" in
               merge_ok)
-                GH_TOKEN="$LABEL_TOKEN" gh pr edit "$PR" --repo "$REPO" --remove-label "review: needs-work" 2>/dev/null || true
-                GH_TOKEN="$LABEL_TOKEN" gh pr edit "$PR" --repo "$REPO" --add-label "review: passed" \
+                GH_TOKEN="$LABEL_TOKEN" gh api -X DELETE "repos/$REPO/issues/$PR/labels/review%3A%20needs-work" >/dev/null 2>&1 || true
+                GH_TOKEN="$LABEL_TOKEN" gh api -X POST "repos/$REPO/issues/$PR/labels" -f "labels[]=review: passed" >/dev/null \
                   || echo "::warning::review: passed 부착 실패 — 라벨 미생성? (게이트 pending 유지, fail-closed)"
                 ;;
               needs_changes)
-                GH_TOKEN="$LABEL_TOKEN" gh pr edit "$PR" --repo "$REPO" --remove-label "review: passed" 2>/dev/null || true
-                GH_TOKEN="$LABEL_TOKEN" gh pr edit "$PR" --repo "$REPO" --add-label "review: needs-work" \
+                GH_TOKEN="$LABEL_TOKEN" gh api -X DELETE "repos/$REPO/issues/$PR/labels/review%3A%20passed" >/dev/null 2>&1 || true
+                GH_TOKEN="$LABEL_TOKEN" gh api -X POST "repos/$REPO/issues/$PR/labels" -f "labels[]=review: needs-work" >/dev/null \
                   || echo "::warning::review: needs-work 부착 실패 — 라벨 미생성?"
                 ;;
             esac
