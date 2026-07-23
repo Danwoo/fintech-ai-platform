@@ -219,6 +219,7 @@ async def _run_stage_node(deps: _GraphDeps, state: PlanExecuteState, config: Run
                 react_recursion_limit=deps.react_recursion_limit,
                 tool_trace_sink=tool_calls_sink,
                 stream_writer=sa_stream_writer,
+                parent_config=config,
             )
         )
         valid_tasks.append(task_item)

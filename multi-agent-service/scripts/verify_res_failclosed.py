@@ -45,7 +45,7 @@ class _FakeTool:
         self._behaviors = list(behaviors)
         self.call_count = 0
 
-    async def ainvoke(self, args: dict) -> str:
+    async def ainvoke(self, args: dict, config=None) -> str:
         self.call_count += 1
         behavior = self._behaviors.pop(0) if self._behaviors else self._behaviors_default()
         if behavior is _FAIL:
