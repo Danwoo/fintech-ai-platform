@@ -21,17 +21,19 @@ repos:
       - id: eslint
         name: eslint
         language: system
-        entry: bash -c 'cd frontend && for f in "$@"; do set -- "$@" "${f#frontend/}"; shift; done && npx eslint --fix "$@"' bash
+        entry: bash -c 'cd frontend && if [ ! -d node_modules ]; then echo "SKIP eslint — frontend/node_modules 없음 (환경 미설치, 코드 문제 아님). cd frontend && npm ci 후 다시 커밋하세요."; exit 0; fi && for f in "$@"; do set -- "$@" "${f#frontend/}"; shift; done && npx eslint --fix "$@"' bash
         files: ^frontend/.*\.(js|jsx|ts|tsx)$
         exclude: ^frontend/prisma\.config\.ts$
         pass_filenames: true
+        verbose: true
 
       - id: tsc
         name: tsc
         language: system
-        entry: bash -c 'cd frontend && npx tsc --noEmit'
+        entry: bash -c 'cd frontend && if [ ! -d node_modules ]; then echo "SKIP tsc — frontend/node_modules 없음 (환경 미설치, 코드 문제 아님). cd frontend && npm ci 후 다시 커밋하세요."; exit 0; fi && npx tsc --noEmit'
         files: ^frontend/.*\.(ts|tsx)$
         pass_filenames: false
+        verbose: true
 
       - id: mcp-lockstep
         name: mcp lockstep (mcp_tools·call_mcp_tool ↔ operation_id)
