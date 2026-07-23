@@ -36,6 +36,12 @@ async def _invoke_agent_safe(
 
     for attempt in range(1 + max_retries):
         t0 = time.monotonic()
+        # 시도별 임시 trace 버퍼 — 성공한 시도의 도구 기록만 공유 sink 로 승격한다(#121).
+        # 실패(타임아웃/예외/빈응답) 시 이 버퍼를 그대로 버려, 부분성공 후 실패한 시도가 남긴 도구
+        # 기록이 공유 sink 에 누적되지 않게 한다. 공유 sink 를 "길이 스냅샷 후 절단"하지 않는 이유:
+        # 같은 sink 를 병렬 sub-agent 들이 공유(nodes.py `_run_stage_node`)하므로, 절단은 그 사이
+        # 다른 형제 agent 가 append 한 기록까지 지운다. 버퍼→성공 시 extend 는 append-only 라 안전하다.
+        attempt_trace: list[dict[str, Any]] = []
         try:
             # run_name=도메인명 — LangSmith/langfuse trace 트리에서 generic "LangGraph" 대신 도메인 식별
             invoke_config: dict[str, Any] = {"recursion_limit": react_recursion_limit, "run_name": agent_name}
@@ -46,7 +52,7 @@ async def _invoke_agent_safe(
                 invoke_config["callbacks"] = [
                     _ToolTraceCallback(
                         agent_name=agent_name,
-                        sink=tool_trace_sink if tool_trace_sink is not None else [],
+                        sink=attempt_trace,
                         stream_writer=stream_writer,
                     ),
                 ]
@@ -63,6 +69,9 @@ async def _invoke_agent_safe(
             else:
                 if attempt > 0:
                     logger.info("[%s] 재시도 성공 (attempt %d)", agent_name, attempt + 1)
+                # 성공한 시도의 도구 기록만 공유 sink 로 승격 — append-only 라 병렬 형제 sink 를 깨지 않음.
+                if tool_trace_sink is not None:
+                    tool_trace_sink.extend(attempt_trace)
                 return AgentResult.ok(agent=agent_name, task=task, payload=payload, elapsed_s=elapsed, group=group)
         except TimeoutError:
             elapsed = round(time.monotonic() - t0, 2)
