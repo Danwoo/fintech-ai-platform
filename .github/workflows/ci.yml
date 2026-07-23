@@ -5,6 +5,16 @@ name: CI
 # 바뀔 때 lockstep 검증을 돌린다.
 # 전 서비스 인증 파일(app/core/security.py·auth_context.py·config.py)이나 대조 체커가 바뀔 때 auth lockstep 검증을 돌린다.
 # main 대상 PR 과 main push 두 경우 모두 트리거.
+#
+# ── 통합 노트 (17 → 14 잡) ────────────────────────────────────────────────
+# 원본 17개 잡 중, 같은 서비스(multi-agent-service)·같은 setup(uv, cwd=multi-agent-service)의
+# **비보안 내부정합 계약 검증 4종**(schema-parity·stage-topology·content-normalization·res-failclosed)
+# 만 한 잡(multi-agent-service-contracts)의 순차 스텝으로 묶었다 — setup(checkout+uv) 3중복 제거.
+# 나머지는 전부 그대로 남겼다:
+#   · 보안·데이터안전 핵심 9종(auth·tenant·redaction·injection·upload-safety)은 독립 빨강 신호가 가치 → 격리 유지.
+#   · lint(ruff)·타 서비스 계약·stdlib lockstep 은 setup/venv/카테고리가 달라 억지 통합이 손해 → 격리 유지.
+# 커버리지는 원본과 동일(스크립트 17종 전부 호출, 누락 0). 근거·대조는 CONSOLIDATION.md 참조.
+# ──────────────────────────────────────────────────────────────────────────
 on:
   pull_request:
     branches: [main]
@@ -32,37 +42,35 @@ on:
       - "scripts/verify_auth_lockstep.py"
 
 jobs:
+  # ── 격리 유지: lint (multi-agent-service) ──────────────────────────────
+  # 계약 검증과 카테고리가 다른 스타일 게이트. 가장 자주 실패하는 축이라 독립·병렬 빠른 피드백에
+  # 가치가 있고, 여기 묶으면 스타일 nit 하나가 계약 스텝 결과를 가릴(fail-fast) 위험 → 별도 유지.
   ruff:
     runs-on: ubuntu-latest
     steps:
-      # 1) 저장소 체크아웃
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2) uv 설치 (Python 3.12 를 uv 가 관리 — pyproject 의 requires-python 과 일치)
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
 
-      # 3) ruff 린트 실행 (cwd=multi-agent-service, app/ 대상)
       - name: Ruff check
         working-directory: multi-agent-service
         run: uv run ruff check app/
 
-  # SUBAGENT_SPECS.mcp_tools ↔ MCP 라우터 operation_id 정적 대조 (stdlib 전용 — 의존성 설치 불필요)
-  lockstep:
+  # ── 통합 그룹 G1: multi-agent-service 내부정합 계약 4종 ────────────────────
+  # 같은 서비스·같은 setup(uv, cwd=multi-agent-service)의 비보안 correctness 계약들.
+  # 순차 스텝으로 묶어도 (a) 검증 의미가 안 섞이고 (b) 스텝 이름으로 실패 즉시 식별,
+  # (c) 서로 독립 병렬일 필요가 절실하지 않다 → setup 3중복 제거가 순이득.
+  # 주: 잡 내 기본 fail-fast — 앞 스텝 실패 시 뒤 스텝은 스킵(fix-후-rerun 허용 비용).
+  #     보안 핵심을 여기 넣지 않은 이유가 이것(빨강 신호가 가려지면 안 됨).
+  multi-agent-service-contracts:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: MCP lockstep check
-        run: python3 multi-agent-service/scripts/verify_mcp_lockstep.py
-
-  # 정적(schemas.py) ↔ 동적(deps.py) LLM 라우팅 스키마 parity (pydantic import 필요 — uv 환경)
-  schema-parity:
-    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: multi-agent-service
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -72,11 +80,26 @@ jobs:
         with:
           python-version: "3.12"
 
+      # 정적(schemas.py) ↔ 동적(deps.py) LLM 라우팅 스키마 parity
       - name: Schema parity check
-        working-directory: multi-agent-service
         run: uv run python scripts/verify_schema_parity.py
 
-  # core/security.py 인증 계약 (fail-closed·헤더 전용·서비스 토큰 typ — backend-service 강화판 정렬)
+      # stage 위상 정렬 계약 (병합·분리·순환 안전망·completed 시딩)
+      - name: Stage topology check
+        run: uv run python scripts/verify_stage_topology.py
+
+      # 멀티모달 list content 정규화 계약 (.content str 가정 방어 — #30)
+      - name: Content normalization check
+        run: uv run python scripts/verify_content_normalization.py
+
+      # RES fail-closed 계약 (실패 sub-agent 강제 retry + synthesize context 배제 — #74)
+      # 판단: fail-closed 라는 안전 성격은 있으나 auth/tenant/redaction/injection 경계는 아닌
+      # 오케스트레이션 엔진 행위 계약 → 통합에 포함. 팀이 안전 경계로 보면 별도 잡으로 분리 가능(→15).
+      - name: RES fail-closed check
+        run: uv run python scripts/verify_res_failclosed.py
+
+  # ── 격리 유지: 보안 핵심 (multi-agent-service) ──────────────────────────
+  # core/security.py 인증 계약 (fail-closed·헤더 전용·서비스 토큰 typ)
   auth-hardening:
     runs-on: ubuntu-latest
     steps:
@@ -91,32 +114,6 @@ jobs:
       - name: Auth hardening check
         working-directory: multi-agent-service
         run: uv run python scripts/verify_auth_hardening.py
-
-  # 전 서비스 core/security.py·auth_context.py == backend-service + config.py 강화 델타 정적 대조 (stdlib 전용 — 의존성 설치 불필요)
-  auth-lockstep:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Auth lockstep check
-        run: python3 scripts/verify_auth_lockstep.py
-
-  # stage 위상 정렬 계약 (병합·분리·순환 안전망·completed 시딩)
-  stage-topology:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          python-version: "3.12"
-
-      - name: Stage topology check
-        working-directory: multi-agent-service
-        run: uv run python scripts/verify_stage_topology.py
 
   # 운영정보 redaction 계약 (구분자 무관 API 키 치환 + Writer evidence 경로 적용)
   redaction:
@@ -134,8 +131,8 @@ jobs:
         working-directory: multi-agent-service
         run: uv run python scripts/verify_redaction.py
 
-  # RES fail-closed 계약 (실패 sub-agent 강제 retry 실제 수행 + synthesize context 배제 — #74)
-  res-failclosed:
+  # on-behalf 서비스 토큰 계약 (요청자 company_id 를 하류 MCP 로 전달·미설정 시 필드 부재 — #35)
+  onbehalf-token:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -146,12 +143,12 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: RES fail-closed check
+      - name: On-behalf token check
         working-directory: multi-agent-service
-        run: uv run python scripts/verify_res_failclosed.py
+        run: uv run python scripts/verify_onbehalf_token.py
 
-  # 그래프 메모이즈 계약 (키 identity 재사용·tool 버전 무효화·delegate_runtime 요청 격리·동시 요청 비혼입 — #120)
-  graph-memoization:
+  # 멀티턴 히스토리 상한 + 인젝션 재주입 우회 차단 계약 (로드 캡·chokepoint envelope/무력화 — #85)
+  history-guard:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -162,27 +159,13 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Graph memoization check
+      - name: History guard check
         working-directory: multi-agent-service
-        run: uv run python scripts/verify_graph_memoization.py
+        run: uv run python scripts/verify_history_guard.py
 
-  # 멀티모달 list content 정규화 계약 (LLM/메시지 .content str 가정 방어 — payload·narrative·final_answer — #30)
-  content-normalization:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          python-version: "3.12"
-
-      - name: Content normalization check
-        working-directory: multi-agent-service
-        run: uv run python scripts/verify_content_normalization.py
-
-  # portfolio 계산 계약 (통화별 집계 — 환율 없는 통화 혼합 스칼라합 금지 · nav 버킷 · 원본 타임스탬프 정렬 — #10)
+  # ── 격리 유지: portfolio-mcp-service (다른 서비스·다른 venv) ─────────────
+  # portfolio 계산 계약 (통화별 집계 — 통화 혼합 스칼라합 금지·nav 버킷·원본 타임스탬프 정렬 — #10)
+  # correctness 계약이나, 같은 서비스의 다른 두 잡이 보안 핵심(redaction·tenant)이라 묶을 짝이 없음 → 단독.
   portfolio-calc:
     runs-on: ubuntu-latest
     steps:
@@ -198,7 +181,7 @@ jobs:
         working-directory: portfolio-mcp-service
         run: uv run python scripts/verify_portfolio_calc.py
 
-  # portfolio 계좌·카드 식별자 redaction 계약 (라벨+값 공백 구분자 포함 마스킹 · 오탐 없음 — #10)
+  # portfolio 계좌·카드 식별자 redaction 계약 (라벨+값 공백 구분자 포함 마스킹·오탐 없음 — #10)
   portfolio-redaction:
     runs-on: ubuntu-latest
     steps:
@@ -230,22 +213,7 @@ jobs:
         working-directory: portfolio-mcp-service
         run: uv run python scripts/verify_tenant_isolation.py
 
-  # on-behalf 서비스 토큰 계약 (요청자 company_id 를 하류 MCP 로 전달·미설정 시 필드 부재 — #35)
-  onbehalf-token:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          python-version: "3.12"
-
-      - name: On-behalf token check
-        working-directory: multi-agent-service
-        run: uv run python scripts/verify_onbehalf_token.py
-
+  # ── 격리 유지: devactivity-service (다른 서비스·다른 venv) ───────────────
   # devactivity 스케줄러 라우트 권한/테넌트 게이팅 계약 (서비스토큰 거부·role 게이트·company_id 스코핑 — #71)
   scheduler-gating:
     runs-on: ubuntu-latest
@@ -263,6 +231,7 @@ jobs:
         run: uv run python scripts/verify_scheduler_gating.py
 
   # devactivity 활동요약 ↔ portfolio-mcp account-activity tool 계약 (단수 account_id 실스키마 검증·events 소비·found=False 표면화 — #114)
+  # correctness 계약이나 같은 서비스에 묶을 비보안 짝이 scheduler-gating(보안)뿐 → 단독.
   activity-report:
     runs-on: ubuntu-latest
     steps:
@@ -278,22 +247,7 @@ jobs:
         working-directory: devactivity-service
         run: uv run python scripts/verify_activity_report.py
 
-  # 멀티턴 히스토리 상한 + 인젝션 재주입 우회 차단 계약 (로드 캡·chokepoint envelope/무력화 — #85)
-  history-guard:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          python-version: "3.12"
-
-      - name: History guard check
-        working-directory: multi-agent-service
-        run: uv run python scripts/verify_history_guard.py
-
+  # ── 격리 유지: file-service (다른 서비스·업로드 안전 핵심) ────────────────
   # file-service 확장자 정규화 계약 (trailing-space·dotfile 위험 확장자 차단 우회 폐쇄 + transform 연쇄 — #108)
   extension-normalization:
     runs-on: ubuntu-latest
@@ -309,3 +263,42 @@ jobs:
       - name: Extension normalization check
         working-directory: file-service
         run: uv run python scripts/verify_extension_normalization.py
+
+  # ── 격리 유지: stdlib 전용 (uv setup 불필요 — 별도 카테고리) ──────────────
+  # SUBAGENT_SPECS.mcp_tools ↔ MCP 라우터 operation_id 정적 대조 (stdlib 전용 — 의존성 설치 불필요)
+  # correctness 계약이나 같은 setup(stdlib, cwd=repo root)의 짝 auth-lockstep 이 보안 핵심 → 단독.
+  lockstep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: MCP lockstep check
+        run: python3 multi-agent-service/scripts/verify_mcp_lockstep.py
+
+  # 전 서비스 core/security.py·auth_context.py == backend-service + config.py 강화 델타 정적 대조 (stdlib 전용)
+  auth-lockstep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Auth lockstep check
+        run: python3 scripts/verify_auth_lockstep.py
+
+  # 그래프 메모이즈 계약 (키 identity 재사용·tool 버전 무효화·delegate_runtime 요청 격리·동시 요청 비혼입 — #120)
+  graph-memoization:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Graph memoization check
+        working-directory: multi-agent-service
+        run: uv run python scripts/verify_graph_memoization.py
+

@@ -400,10 +400,16 @@ jobs:
           #             run 29986245411). 고정 sleep 이 아니라 재시도로 준비 확인 후에만 send (수동 실측
           #             정상 대기 ≈12초 < 기본 타임아웃 60초).
           #   WT_PATH_*: worktree show 도 create 직후 경로 조회 레이스 — §6.1 신원 설정을 재시도한다.
+          #   WT_DELETE_RETRY: worktree delete 가 활성 에이전트 터미널로 거부될 수 있어(버그 #2 —
+          #             PR#119 review-119-kimi 잔존·kimi 워커 터미널 활성 실측) 짧은 백오프로 재시도한다.
+          #             정리는 터미널을 먼저 `terminal send --interrupt` 로 중단한 뒤 삭제한다.
+          #             ⚠ Orca 의 활성-터미널 거부 거동·--interrupt 종료 효과는 제안값 — 오케스트레이터가
+          #             라이브로 확정 (D1 §6).
           READY_INTERVAL="${ORCA_TERM_READY_POLL_SECS:-3}"
           READY_TIMEOUT="${ORCA_TERM_READY_TIMEOUT_SECS:-60}"
           WT_PATH_INTERVAL="${ORCA_WT_PATH_POLL_SECS:-3}"
           WT_PATH_TIMEOUT="${ORCA_WT_PATH_TIMEOUT_SECS:-30}"
+          WT_DELETE_RETRY="${ORCA_WT_DELETE_RETRY_SECS:-2}"
 
           synth_verdict() {   # $1=verdict $2=summary — 헤드리스 경로와 동일한 verdict.json 계약으로 합성
             jq -n --arg m "$MODEL" --arg v "$1" --arg sha "$HEAD_SHA" --arg s "$2" \
@@ -426,14 +432,28 @@ jobs:
             local h
             list_worktree_handles | while IFS= read -r h; do
               [ -n "$h" ] || continue
+              # 삭제 전 활성 에이전트를 먼저 중단(버그 #2) — 살아있는 에이전트 터미널(kimi/claude)이
+              # worktree delete 를 막는 정황 실측(PR#119). ⚠ --interrupt 종료 효과는 제안값·라이브 확정.
+              orca-ide terminal send --terminal "$h" --interrupt $ORCA_ENV >/dev/null 2>&1 || true
               orca-ide terminal delete "$h" $ORCA_ENV --json >/dev/null 2>&1 || true
             done
             orca-ide terminal delete "name:$WT_NAME" $ORCA_ENV --json >/dev/null 2>&1 || true
           }
 
-          cleanup_worker() {   # 터미널(전부) → 워크트리 순. review-* 자체 브랜치라 삭제 안전(PR 브랜치 아님)
+          cleanup_worker() {   # 터미널(전부, 에이전트는 먼저 중단) → 워크트리. review-* 자체 브랜치라 삭제 안전
             delete_worktree_terminals
-            orca-ide worktree delete "name:$WT_NAME" $ORCA_ENV --json >/dev/null 2>&1 || true
+            # worktree delete 가 활성 터미널 정리 지연으로 실패할 수 있어(버그 #2) 짧은 백오프로 재시도.
+            # 워크트리가 이미 없으면(선청소 흔한 경우) 재시도 없이 즉시 종료해 불필요한 지연을 피한다.
+            # 끝내 실패면 다음 run 선청소(멱등)에 위임(현행 백스톱 유지). ⚠ 활성-터미널 거부 거동은 라이브 확정.
+            local attempt
+            for attempt in 1 2 3; do
+              if orca-ide worktree delete "name:$WT_NAME" $ORCA_ENV --json >/dev/null 2>&1; then return 0; fi
+              orca-ide worktree show "name:$WT_NAME" $ORCA_ENV --json 2>/dev/null \
+                | jq -e '.result.path // empty' >/dev/null 2>&1 || return 0   # 이미 없음 → 완료
+              delete_worktree_terminals   # 잔존 터미널 재중단·재삭제 후 재시도
+              sleep "$WT_DELETE_RETRY"
+            done
+            return 1
           }
 
           fail_closed() {   # $1=사유 — 정리 후 unable(사람 경로). 헤드리스 재실행 없음(이중 리뷰 방지)
@@ -590,12 +610,26 @@ jobs:
               | map(select((.worktree // .worktreeName // .title) == $wt))
               | .[] | (.id // .handle // empty)' 2>/dev/null | while IFS= read -r H; do
             [ -n "$H" ] || continue
+            # 활성 에이전트 먼저 중단 후 삭제(버그 #2) — 살아있는 에이전트 터미널이 worktree delete 를
+            # 막는 정황 실측(PR#119 review-119-<agent> 잔존). ⚠ --interrupt 종료 효과는 제안값·라이브 확정.
+            orca-ide terminal send --terminal "$H" --interrupt $ORCA_ENV >/dev/null 2>&1 || true
             orca-ide terminal delete "$H" $ORCA_ENV --json >/dev/null 2>&1 || true
           done
           orca-ide terminal delete "name:$WT_NAME" $ORCA_ENV --json \
             || echo "::warning::리뷰 터미널 정리 실패 — 다음 run 선청소가 재시도"
-          orca-ide worktree delete "name:$WT_NAME" $ORCA_ENV --json \
-            || echo "::warning::리뷰 워크트리 정리 실패 (자체 브랜치 review-*) — 다음 run 선청소가 재시도"
+          # worktree delete 는 활성 터미널 정리 지연으로 실패할 수 있어(버그 #2) 짧은 백오프로 재시도.
+          # 워크트리가 이미 없으면 완료로 간주. 끝내 실패면 경고 후 다음 run 선청소(멱등)에 위임
+          # (현행 백스톱 유지). ⚠ 활성-터미널 거부 거동은 제안값 — 오케스트레이터가 라이브로 확정.
+          WT_DELETE_RETRY="${ORCA_WT_DELETE_RETRY_SECS:-2}"
+          WT_DELETED=0
+          for attempt in 1 2 3; do
+            if orca-ide worktree delete "name:$WT_NAME" $ORCA_ENV --json; then WT_DELETED=1; break; fi
+            orca-ide worktree show "name:$WT_NAME" $ORCA_ENV --json 2>/dev/null \
+              | jq -e '.result.path // empty' >/dev/null 2>&1 || { WT_DELETED=1; break; }   # 이미 없음 → 완료
+            echo "::warning::리뷰 워크트리 정리 실패(시도 ${attempt}/3, 활성 터미널?) — ${WT_DELETE_RETRY}s 후 재시도"
+            sleep "$WT_DELETE_RETRY"
+          done
+          [ "$WT_DELETED" = 1 ] || echo "::warning::리뷰 워크트리 정리 최종 실패 (자체 브랜치 review-*) — 다음 run 선청소가 재시도"
       - name: 판정 산출물 정규화 (형식 위반 → 리뷰 불가, fail-closed)
         # always(): 모델 실행 스텝이 실패해도 반드시 돈다 — 안 돌면 모델이 중간까지 쓴 미검증
         # verdict.json 이 always() 업로드를 그대로 타는 fail-open 균열 (회의론 지적 1, 2026-07-23)
@@ -733,10 +767,16 @@ jobs:
           #             run 29986245411). 고정 sleep 이 아니라 재시도로 준비 확인 후에만 send (수동 실측
           #             정상 대기 ≈12초 < 기본 타임아웃 60초).
           #   WT_PATH_*: worktree show 도 create 직후 경로 조회 레이스 — §6.1 신원 설정을 재시도한다.
+          #   WT_DELETE_RETRY: worktree delete 가 활성 에이전트 터미널로 거부될 수 있어(버그 #2 —
+          #             PR#119 review-119-kimi 잔존·kimi 워커 터미널 활성 실측) 짧은 백오프로 재시도한다.
+          #             정리는 터미널을 먼저 `terminal send --interrupt` 로 중단한 뒤 삭제한다.
+          #             ⚠ Orca 의 활성-터미널 거부 거동·--interrupt 종료 효과는 제안값 — 오케스트레이터가
+          #             라이브로 확정 (D1 §6).
           READY_INTERVAL="${ORCA_TERM_READY_POLL_SECS:-3}"
           READY_TIMEOUT="${ORCA_TERM_READY_TIMEOUT_SECS:-60}"
           WT_PATH_INTERVAL="${ORCA_WT_PATH_POLL_SECS:-3}"
           WT_PATH_TIMEOUT="${ORCA_WT_PATH_TIMEOUT_SECS:-30}"
+          WT_DELETE_RETRY="${ORCA_WT_DELETE_RETRY_SECS:-2}"
 
           synth_verdict() {   # $1=verdict $2=summary — 헤드리스 경로와 동일한 verdict.json 계약으로 합성
             jq -n --arg m "$MODEL" --arg v "$1" --arg sha "$HEAD_SHA" --arg s "$2" \
@@ -759,14 +799,28 @@ jobs:
             local h
             list_worktree_handles | while IFS= read -r h; do
               [ -n "$h" ] || continue
+              # 삭제 전 활성 에이전트를 먼저 중단(버그 #2) — 살아있는 에이전트 터미널(kimi/claude)이
+              # worktree delete 를 막는 정황 실측(PR#119). ⚠ --interrupt 종료 효과는 제안값·라이브 확정.
+              orca-ide terminal send --terminal "$h" --interrupt $ORCA_ENV >/dev/null 2>&1 || true
               orca-ide terminal delete "$h" $ORCA_ENV --json >/dev/null 2>&1 || true
             done
             orca-ide terminal delete "name:$WT_NAME" $ORCA_ENV --json >/dev/null 2>&1 || true
           }
 
-          cleanup_worker() {   # 터미널(전부) → 워크트리 순. review-* 자체 브랜치라 삭제 안전(PR 브랜치 아님)
+          cleanup_worker() {   # 터미널(전부, 에이전트는 먼저 중단) → 워크트리. review-* 자체 브랜치라 삭제 안전
             delete_worktree_terminals
-            orca-ide worktree delete "name:$WT_NAME" $ORCA_ENV --json >/dev/null 2>&1 || true
+            # worktree delete 가 활성 터미널 정리 지연으로 실패할 수 있어(버그 #2) 짧은 백오프로 재시도.
+            # 워크트리가 이미 없으면(선청소 흔한 경우) 재시도 없이 즉시 종료해 불필요한 지연을 피한다.
+            # 끝내 실패면 다음 run 선청소(멱등)에 위임(현행 백스톱 유지). ⚠ 활성-터미널 거부 거동은 라이브 확정.
+            local attempt
+            for attempt in 1 2 3; do
+              if orca-ide worktree delete "name:$WT_NAME" $ORCA_ENV --json >/dev/null 2>&1; then return 0; fi
+              orca-ide worktree show "name:$WT_NAME" $ORCA_ENV --json 2>/dev/null \
+                | jq -e '.result.path // empty' >/dev/null 2>&1 || return 0   # 이미 없음 → 완료
+              delete_worktree_terminals   # 잔존 터미널 재중단·재삭제 후 재시도
+              sleep "$WT_DELETE_RETRY"
+            done
+            return 1
           }
 
           fail_closed() {   # $1=사유 — 정리 후 unable(사람 경로). 헤드리스 재실행 없음(이중 리뷰 방지)
@@ -923,12 +977,26 @@ jobs:
               | map(select((.worktree // .worktreeName // .title) == $wt))
               | .[] | (.id // .handle // empty)' 2>/dev/null | while IFS= read -r H; do
             [ -n "$H" ] || continue
+            # 활성 에이전트 먼저 중단 후 삭제(버그 #2) — 살아있는 에이전트 터미널이 worktree delete 를
+            # 막는 정황 실측(PR#119 review-119-<agent> 잔존). ⚠ --interrupt 종료 효과는 제안값·라이브 확정.
+            orca-ide terminal send --terminal "$H" --interrupt $ORCA_ENV >/dev/null 2>&1 || true
             orca-ide terminal delete "$H" $ORCA_ENV --json >/dev/null 2>&1 || true
           done
           orca-ide terminal delete "name:$WT_NAME" $ORCA_ENV --json \
             || echo "::warning::리뷰 터미널 정리 실패 — 다음 run 선청소가 재시도"
-          orca-ide worktree delete "name:$WT_NAME" $ORCA_ENV --json \
-            || echo "::warning::리뷰 워크트리 정리 실패 (자체 브랜치 review-*) — 다음 run 선청소가 재시도"
+          # worktree delete 는 활성 터미널 정리 지연으로 실패할 수 있어(버그 #2) 짧은 백오프로 재시도.
+          # 워크트리가 이미 없으면 완료로 간주. 끝내 실패면 경고 후 다음 run 선청소(멱등)에 위임
+          # (현행 백스톱 유지). ⚠ 활성-터미널 거부 거동은 제안값 — 오케스트레이터가 라이브로 확정.
+          WT_DELETE_RETRY="${ORCA_WT_DELETE_RETRY_SECS:-2}"
+          WT_DELETED=0
+          for attempt in 1 2 3; do
+            if orca-ide worktree delete "name:$WT_NAME" $ORCA_ENV --json; then WT_DELETED=1; break; fi
+            orca-ide worktree show "name:$WT_NAME" $ORCA_ENV --json 2>/dev/null \
+              | jq -e '.result.path // empty' >/dev/null 2>&1 || { WT_DELETED=1; break; }   # 이미 없음 → 완료
+            echo "::warning::리뷰 워크트리 정리 실패(시도 ${attempt}/3, 활성 터미널?) — ${WT_DELETE_RETRY}s 후 재시도"
+            sleep "$WT_DELETE_RETRY"
+          done
+          [ "$WT_DELETED" = 1 ] || echo "::warning::리뷰 워크트리 정리 최종 실패 (자체 브랜치 review-*) — 다음 run 선청소가 재시도"
       - name: 판정 추출·정규화 (마지막 마커 블록 — 형식 위반 → 리뷰 불가) — 헤드리스 경로 전용
         # jq 는 러너 머신 전제 도구다 (이 머신 미설치 실측 — R1 러너 설치 절차에 포함)
         # Orca 경로는 위 스텝이 out/verdict.json·out/review.md 를 직접 합성한다 (publish 가 재검증 — 심층 방어)
@@ -1039,22 +1107,52 @@ jobs:
             exit 0
           fi
 
-          # 1) 판정 확정 (fail-closed: 산출물 없음 = 리뷰 불가)
+          # Orca 경로 판정 폴백 (버그 #1) — 아티팩트 verdict.json 이 없거나 재검증에 실패해도,
+          #   GitHub 에 확실히 있는 PR 코멘트 기계 마커에서 판정을 복원한다. Orca 리뷰 워커는
+          #   판정 코멘트(마커 포함)를 직접 게시하지만, 그 verdict.json 아티팩트는 self-hosted→
+          #   hosted download-artifact 전달에서 파일이 남지 않는 실측(PR#119 run 30003841901)이
+          #   있어 아티팩트만 믿으면 unable 로 새어 게이트가 pending 에 갇힌다. 마커는 취약한
+          #   아티팩트 전달과 달리 GitHub 에 확실히 존재하므로 이를 폴백 근거로 삼는다.
+          #   위조 방지: model==REVIEWER ∧ verdict∈3값 ∧ sha==HEAD_SHA 전건 일치 + 저자 필터
+          #   (OWNER/MEMBER/COLLABORATOR) — 리뷰 잡 폴링 파서·review-gate·merge-router 와 동일
+          #   마커 형식·필터(§3.5 멱등 가드와도 동일). 복수면 마지막. 못 찾으면 unable (fail-closed).
+          scan_marker_verdict() {
+            gh api "repos/$REPO/issues/$PR/comments" --paginate \
+              --jq '.[] | select(.author_association=="OWNER" or .author_association=="MEMBER" or .author_association=="COLLABORATOR") | .body' \
+              | grep -oE "<!-- cross-review v1 model=${REVIEWER} verdict=(merge_ok|needs_changes|unable) sha=${HEAD_SHA} -->" \
+              | tail -n 1 | sed -E 's/^.* verdict=([a-z_]+) sha=.*$/\1/'
+          }
+
+          # 1) 판정 확정 (fail-closed: 산출물·마커 모두 없음 = 리뷰 불가)
           if [ "$REVIEWER" = "none" ]; then
             VERDICT=unable
             SUMMARY="교차 가능 리뷰 모델 없음 (저자 모델: ${AUTHOR_MODELS} — 전 저자 모델 제외 후 공집합). 사람 리뷰 경로 필요."
             : > review.md
           elif [ ! -s verdict/verdict.json ]; then
-            VERDICT=unable
-            SUMMARY="리뷰 잡 산출물 없음 (잡 실패·취소) — fail-closed"
+            # 아티팩트 부재 (잡 실패·취소, 또는 self-hosted→hosted 전달 실패) → 마커 폴백 (버그 #1)
+            MARKER_VERDICT=$(scan_marker_verdict || true)
+            if [ -n "$MARKER_VERDICT" ]; then
+              VERDICT="$MARKER_VERDICT"
+              SUMMARY="아티팩트 verdict.json 부재 — PR 코멘트 기계 마커에서 판정 복원 (Orca 경로: model=${REVIEWER} sha=${HEAD_SHA}, 저자 필터 OWNER/MEMBER/COLLABORATOR)"
+            else
+              VERDICT=unable
+              SUMMARY="리뷰 잡 산출물 없음 (잡 실패·취소) + 유효 판정 마커 없음 — fail-closed"
+            fi
             : > review.md
           elif ! jq -e --arg sha "$HEAD_SHA" \
               '.schema=="cross-review/v1" and (.verdict=="merge_ok" or .verdict=="needs_changes" or .verdict=="unable") and .sha==$sha' \
               verdict/verdict.json >/dev/null 2>&1; then
             # 심층 방어 — 리뷰 잡과 동일한 검증식 재적용 (회의론 지적 1): 리뷰 잡 정규화가
-            # 못 돌았거나 우회된 산출물(낡은 SHA·형식 위반·파손 JSON)은 여기서 unable 로 강제
-            VERDICT=unable
-            SUMMARY="verdict.json 재검증 실패 (schema·verdict·sha 검증식 불일치) — fail-closed (심층 방어)"
+            # 못 돌았거나 우회된 산출물(낡은 SHA·형식 위반·파손 JSON)은 아티팩트를 신뢰하지 않고
+            # PR 코멘트 마커 폴백을 시도한다 (버그 #1). 마커도 없으면 unable 로 강제.
+            MARKER_VERDICT=$(scan_marker_verdict || true)
+            if [ -n "$MARKER_VERDICT" ]; then
+              VERDICT="$MARKER_VERDICT"
+              SUMMARY="verdict.json 재검증 실패 — PR 코멘트 기계 마커에서 판정 복원 (Orca 경로: model=${REVIEWER} sha=${HEAD_SHA}, 저자 필터 OWNER/MEMBER/COLLABORATOR)"
+            else
+              VERDICT=unable
+              SUMMARY="verdict.json 재검증 실패 (schema·verdict·sha 검증식 불일치) + 유효 판정 마커 없음 — fail-closed (심층 방어)"
+            fi
             cp verdict/review.md review.md 2>/dev/null || : > review.md
           else
             VERDICT=$(jq -r .verdict verdict/verdict.json)
