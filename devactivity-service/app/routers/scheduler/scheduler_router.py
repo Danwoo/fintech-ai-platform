@@ -134,7 +134,7 @@ def select_member_list(
     dependencies=[Depends(verify_access_token), Depends(require_role(ROLE_ADMIN, ROLE_OPERATOR))],
 )
 @inject
-def insert_member(
+async def insert_member(
     request: Request,
     scheduler_id: str,
     body: SchedulerMemberIn,
@@ -143,7 +143,7 @@ def insert_member(
     args = body.model_dump()
     args["scheduler_id"] = scheduler_id
     args["reg_id"] = get_email()
-    scheduler_service.insert_member(args)
+    await scheduler_service.insert_member(args)
     return CreateOut(data={"account_id": args["account_id"]})
 
 
