@@ -133,6 +133,7 @@ services:
       - ./multi-agent-service/app/.env.production
     networks:
       - fullstack
+      - mssql
       - victorialogs
     environment:
       APP_ENV: production
