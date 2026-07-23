@@ -1,10 +1,17 @@
 import time
 
 from core.config import settings
-from fastapi import Request
+from core.logger import logger
+from fastapi import Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+
+# Content-Length 는 멀티파트 전체 바디(경계·파트 헤더·폼필드 포함) 크기다. 파일당 한도(settings.max_upload_bytes)
+# 위에 프레이밍/폼필드 오버헤드 여유분을 얹어, 한도에 근접한 단일 파일이 프레이밍 때문에 조기 거절되는 것을 막는다.
+# 이 여유분 안(20MB~한도)에 든 실제 초과 파일은 파싱 후 실측 검사(FileService.upload_files)가 정밀 판정한다.
+UPLOAD_BODY_OVERHEAD_MARGIN_BYTES = 1 * 1024 * 1024  # 1 MiB
 
 
 class McpHeaderMiddleware(BaseHTTPMiddleware):
@@ -28,6 +35,47 @@ class McpHeaderMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class MaxUploadSizeMiddleware(BaseHTTPMiddleware):
+    """업로드 엔드포인트(POST /file)에서 멀티파트 파싱/temp spool 이전에 Content-Length 를 검사해,
+    명백히 한도를 초과한 요청을 조기 413 으로 거절한다 (대용량 바디의 대역폭·temp 디스크·파싱 자원 소모 차단, #109).
+
+    Content-Length 헤더는 조기 거절 '힌트'일 뿐이다 — 없거나 위조/누락될 수 있어 신뢰하지 않는다.
+    실제 크기 판정은 파싱 후 FileService.upload_files 의 file.size 실측 검사가 담당하며, 이 미들웨어는 그 검사를 대체하지 않는다.
+    """
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint):
+        if self._is_upload_request(request):
+            content_length = self._parse_content_length(request)
+            if content_length is not None:
+                limit = settings.max_upload_bytes + UPLOAD_BODY_OVERHEAD_MARGIN_BYTES
+                if content_length > limit:
+                    logger.warning(
+                        f"{request.method} {request.url.path} 413: "
+                        f"Content-Length {content_length} > {limit} 조기 거절 (파싱 전)"
+                    )
+                    return JSONResponse(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        content={"detail": f"업로드 크기가 허용 한도({settings.MAX_UPLOAD_SIZE_MB}MB)를 초과했습니다."},
+                    )
+        # 힌트 미검출(헤더 없음·파싱 불가·한도 이하)이면 통과 — 실측 검사가 최종 판정.
+        return await call_next(request)
+
+    @staticmethod
+    def _is_upload_request(request: Request) -> bool:
+        # 유일한 바디 수용 라우트는 POST /file(컬렉션). prefix/root_path 유무와 무관하게 경로 suffix 로 식별.
+        return request.method == "POST" and request.url.path.rstrip("/").endswith("/file")
+
+    @staticmethod
+    def _parse_content_length(request: Request) -> int | None:
+        raw = request.headers.get("content-length")
+        if raw is None:
+            return None
+        try:
+            return int(raw)
+        except ValueError:
+            return None
+
+
 class ProcessTimeMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         start_time = time.time()
@@ -46,6 +94,8 @@ def get_middlewares():
             allow_methods=["*"],
             allow_headers=["*"],
         ),
+        # CORS 다음(바깥에서 두 번째)에 둬, 조기 413 응답에도 CORS 헤더가 붙고 파싱 전에 단락된다.
+        Middleware(MaxUploadSizeMiddleware),
         Middleware(McpHeaderMiddleware),
         Middleware(ProcessTimeMiddleware),
     ]

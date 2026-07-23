@@ -31,7 +31,7 @@ class FileService:
         self.file_repository = file_repository
         self.file_store = file_store
         self.sftp_base_path = settings.SFTP_BASE_PATH
-        self.max_upload_bytes = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+        self.max_upload_bytes = settings.max_upload_bytes
 
     def select_file_list(self, args: dict) -> tuple[list, int]:
         """파일 목록 조회"""

@@ -42,6 +42,11 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
     )
 
+    @property
+    def max_upload_bytes(self) -> int:
+        """업로드 파일당 최대 크기(바이트). MAX_UPLOAD_SIZE_MB 를 단일 소스로 파생 — MB→bytes 변환을 한 곳에만 둔다."""
+        return self.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+
     @model_validator(mode="after")
     def _forbid_dev_bypass_outside_dev(self) -> "Settings":
         # AUTH_DEV_BYPASS 는 development 에서만 — 비-dev 기동 시 fail-fast (인증 우회가 프로덕션에 서는 것 방지)
