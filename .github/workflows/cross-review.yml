@@ -295,6 +295,10 @@ jobs:
     # same-repo 가드 (심층 방어): route 가드가 1차지만, fork PR 이 self-hosted 러너에
     # 오르는 경로를 잡 자체에서도 잠근다
     if: ${{ needs.route.outputs.reviewer == 'claude' && github.event.pull_request.head.repo.full_name == github.repository }}
+    # 리뷰 잡 실패가 머지를 막지 않게 한다 — 진짜 게이트는 review-gate(라벨 기반). 리뷰 디스패치가
+    # 삐끗해도(자동 경로 실패) publish 가 'unable' 을 남기고 review-gate 는 pending 유지(fail-closed).
+    # Orca 는 빨간 체크 하나에도 머지를 차단하므로, 리뷰 잡의 빨강이 사람 머지를 막으면 안 된다.
+    continue-on-error: true
     runs-on: [self-hosted, harness-review]   # 라벨은 제안값 — 러너 등록 시 harness-review 부여 (D2 R1)
     timeout-minutes: 45   # Orca 경로 폴링(기본 30분) + 디스패치 오버헤드 상한 (헤드리스 경로는 종전 30분 내 완결 전제)
     permissions:
@@ -630,6 +634,7 @@ jobs:
     needs: route
     # same-repo 가드 (심층 방어): fork PR 이 self-hosted 러너에 오르는 경로를 잡 자체에서도 잠근다
     if: ${{ needs.route.outputs.reviewer == 'kimi' && github.event.pull_request.head.repo.full_name == github.repository }}
+    continue-on-error: true   # 리뷰 잡 실패는 머지를 막지 않는다 — 게이트는 review-gate(라벨). Orca 빨강 차단 회피.
     runs-on: [self-hosted, harness-review]
     timeout-minutes: 45   # Orca 경로 폴링(기본 30분) + 디스패치 오버헤드 상한 (헤드리스 경로는 종전 30분 내 완결 전제)
     permissions:
@@ -963,6 +968,7 @@ jobs:
     needs: route
     # same-repo 가드 (심층 방어) — 스텁이지만 self-hosted 잡의 공통 가드를 유지한다
     if: ${{ needs.route.outputs.reviewer == 'codex' && github.event.pull_request.head.repo.full_name == github.repository }}
+    continue-on-error: true   # 리뷰 잡 실패는 머지를 막지 않는다 — 게이트는 review-gate(라벨). Orca 빨강 차단 회피.
     runs-on: [self-hosted, harness-review]
     timeout-minutes: 5
     permissions: {}
