@@ -4,25 +4,42 @@
 #   1) "리뷰 대기"를 실패(빨간 ❌)가 아니라 **pending(노란 ●) 커밋 상태**로 표현한다.
 #      — fail 방식은 PR 마다 실패 이력을 쌓아 사람("왜 자꾸 빨간색?")과 도구(Orca 뱃지가
 #        실패 이력 개수를 셈)를 반복해서 속였다.
-#   2) push(synchronize) 가 오면 `human: merge` 라벨을 **자동 회수**한다.
+#   2) push(synchronize) 가 오면 승인·판정 라벨을 **자동 회수**한다.
 #      — 리뷰 통과 뒤 푸시된 코드가 라벨 잔존으로 무검증 머지 가능해지는 창을 닫는다
 #        (PR#111 충돌 해소 커밋에서 실측 — 재확인 끝나기 전까지 머지 버튼이 열려 있었다).
 #
+# 2026-07-23 개정 (결정 15 Q2 — 리뷰 CI화 + 저위험 자동 머지):
+#   - success 조건에 `review: passed`(독립 리뷰 판정 라벨) 추가. 부착 주체는 CI 교차 리뷰
+#     (cross-review.yml) 또는 지휘자(로컬 리뷰 판정 대행) — 워커(저자)는 금지.
+#   - `human: merge` 는 "사람 차례(사람 머지 대기열)" 의미로 보존 — 고위험 경로와 사람 직접
+#     승인 예외(revert 등) 전용. 저위험 자동 경로는 이 라벨을 쓰지 않아 대기열을 오염하지 않는다.
+#   - `review: needs-work`(수정 필요 판정)가 있으면 passed 보다 우선해 pending (보수 기본).
+#     단 `human: merge` 는 needs-work 보다 우선한다 — 게이트의 최종 주체는 사람이다.
+#   - synchronize 회수 대상을 review: passed / review: needs-work 까지 확장.
+#   - base 변경(pull_request edited + changes.base)도 synchronize 와 동일 처리 — base 가 바뀌면
+#     diff 전체가 바뀌므로 판정 라벨 3종을 회수한다 (제목·본문 편집은 무시. merge-router 가
+#     같은 이벤트를 독립 수신해 disarm 한다 — 회의론 지적 7).
+#   - 자동 머지 arm/disarm 은 merge-router.yml 소관 — 이 파일은 라벨↔커밋 상태 동기화만 한다.
+#     (새 커밋에 이 컨텍스트의 상태가 없는 동안 required check 는 미충족이므로, 라벨 회수와
+#      상태 갱신 사이의 틈에도 자동 머지는 완결될 수 없다.)
+#
 # 게이트 원리: branch protection 의 required status check 를 커밋 상태 컨텍스트
 # `review-gate` 로 건다. 이 워크플로가 라벨을 그 상태로 동기화한다:
-#   `human: merge` 있음 → success / 없음 → pending. 잡 자체는 항상 성공 (빨간 이력 없음).
+#   `human: merge` 또는 `review: passed` 있음 → success / 없음 → pending.
+#   잡 자체는 항상 성공 (빨간 이력 없음).
 # 라벨은 이벤트 페이로드가 아니라 gh 로 직접 조회한다 (페이로드 labels 불안정 — 실측).
 #
 # 배포: 대상 레포 .github/workflows/ 에 복사 (기존 require-merge-label.yml 은 제거) +
-#       main 보호의 required contexts 를 ["review-gate"] 로 교체. `human: merge` 라벨 필요.
-#       주의: 보호 교체와 이 파일의 main 반영 사이에 열리는 PR 은 상태 없음으로 잠긴다 —
-#       전환은 열린 PR 이 없는 틈에 한다.
+#       main 보호의 required contexts 를 ["review-gate"] 로 교체.
+#       라벨 4종 필요: `human: merge` `review: passed` `review: needs-work` (+ risk 라벨은
+#       merge-router 참조). 주의: 보호 교체와 이 파일의 main 반영 사이에 열리는 PR 은
+#       상태 없음으로 잠긴다 — 전환은 열린 PR 이 없는 틈에 한다.
 
 name: review-gate
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize, labeled, unlabeled]
+    types: [opened, reopened, synchronize, labeled, unlabeled, edited]   # edited: base 변경 시 판정 라벨 회수
 
 permissions:
   statuses: write
@@ -39,16 +56,27 @@ jobs:
           REPO: ${{ github.repository }}
           SHA: ${{ github.event.pull_request.head.sha }}
           ACTION: ${{ github.event.action }}
+          # edited 이벤트에서 base 가 바뀐 경우에만 값이 실린다 (이전 base ref 이름)
+          BASE_FROM: ${{ github.event.changes.base.ref.from }}
         run: |
-          if [ "$ACTION" = "synchronize" ]; then
-            # 새 커밋 = 리뷰가 본 적 없는 코드 — 승인 라벨을 회수해 재리뷰를 강제한다
+          if [ "$ACTION" = "edited" ] && [ -z "$BASE_FROM" ]; then
+            echo "제목·본문 편집 — 게이트 무관, 무행동"
+            exit 0
+          fi
+          if [ "$ACTION" = "synchronize" ] || [ "$ACTION" = "edited" ]; then
+            # 새 커밋(synchronize)·base 변경(edited — diff 전체가 바뀜) = 리뷰가 본 적 없는 코드
+            # — 승인·판정 라벨을 회수해 재리뷰를 강제한다
             gh pr edit "$PR" --repo "$REPO" --remove-label "human: merge" 2>/dev/null || true
+            gh pr edit "$PR" --repo "$REPO" --remove-label "review: passed" 2>/dev/null || true
+            gh pr edit "$PR" --repo "$REPO" --remove-label "review: needs-work" 2>/dev/null || true
           fi
           LABELS=$(gh pr view "$PR" --repo "$REPO" --json labels --jq '[.labels[].name] | join("|")')
           echo "라벨: [$LABELS]"
           case "|$LABELS|" in
-            *"|human: merge|"*) STATE=success; DESC="독립 리뷰 통과" ;;
-            *)                  STATE=pending; DESC="독립 리뷰 대기 중" ;;
+            *"|human: merge|"*)       STATE=success; DESC="독립 리뷰 통과 — 사람 승인 (human: merge)" ;;
+            *"|review: needs-work|"*) STATE=pending; DESC="수정 필요 판정 — 재작업·재리뷰 대기" ;;
+            *"|review: passed|"*)     STATE=success; DESC="독립 리뷰 통과 (review: passed)" ;;
+            *)                        STATE=pending; DESC="독립 리뷰 대기 중" ;;
           esac
           gh api "repos/$REPO/statuses/$SHA" \
             -f state="$STATE" -f context=review-gate -f description="$DESC" >/dev/null
