@@ -74,7 +74,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  route:
+  # 잡 id 는 merge-route — cross-review.yml 의 entry 잡도 'route' 라, 같은 SHA 에 route 체크런이
+  # 두 줄로 겹치는 혼동을 피한다 (cross-review 쪽 route 는 더 널리 참조돼 유지).
+  merge-route:
     # review: passed 의 부착/회수·push·base 변경만 관심 대상 — 나머지 라벨 이벤트는 스킵
     # (값 전체를 따옴표로 감싼다 — 표현식 내 'review: passed' 의 콜론이 YAML 평문 스칼라를 깨뜨림)
     if: "${{ github.event.action == 'synchronize' || github.event.action == 'edited' || github.event.label.name == 'review: passed' }}"
