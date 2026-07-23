@@ -13,6 +13,7 @@ on:
       - "*-mcp-service/app/routers/**"
       - "portfolio-mcp-service/**"
       - "devactivity-service/**"
+      - "file-service/**"
       - "*/app/core/security.py"
       - "*/app/core/auth_context.py"
       - "*/app/core/config.py"
@@ -24,6 +25,7 @@ on:
       - "*-mcp-service/app/routers/**"
       - "portfolio-mcp-service/**"
       - "devactivity-service/**"
+      - "file-service/**"
       - "*/app/core/security.py"
       - "*/app/core/auth_context.py"
       - "*/app/core/config.py"
@@ -275,3 +277,19 @@ jobs:
       - name: History guard check
         working-directory: multi-agent-service
         run: uv run python scripts/verify_history_guard.py
+
+  # file-service 확장자 정규화 계약 (trailing-space·dotfile 위험 확장자 차단 우회 폐쇄 + transform 연쇄 — #108)
+  extension-normalization:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Extension normalization check
+        working-directory: file-service
+        run: uv run python scripts/verify_extension_normalization.py

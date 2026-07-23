@@ -81,6 +81,21 @@ def strip_extension(file_nm: str) -> str:
     return file_nm
 
 
+def normalize_extension(file_nm: str) -> str:
+    """파일명에서 확장자를 정규화해 추출 — trim 후 소문자 suffix.
+
+    확장자 판정(위험 확장자 차단·타입·MIME·포맷)의 단일 정규화 지점.
+    앞/끝 공백·탭·개행을 제거해 `evil.svg ` 같은 trailing-space 우회를 막는다.
+    이름 전체가 `.svg` 류 dotfile 이면 Path.suffix 는 빈 문자열이라 차단이 새므로,
+    이름 자체를 확장자로 본다 (fail-closed).
+    """
+    name = Path((file_nm or "").strip()).name
+    suffix = Path(name).suffix
+    if not suffix and name.startswith("."):
+        suffix = name
+    return suffix.lower()
+
+
 class FileMetadataUtils:
     """파일 메타데이터 생성 유틸리티"""
 
@@ -133,7 +148,7 @@ class FileMetadataUtils:
         Returns:
             str: "IMAGE" 또는 "DOCUMENT"
         """
-        ext = Path(filename).suffix.lower()
+        ext = normalize_extension(filename)
         return "IMAGE" if ext in FileMetadataUtils.IMAGE_EXTENSIONS else "DOCUMENT"
 
     @staticmethod
@@ -147,7 +162,7 @@ class FileMetadataUtils:
         Returns:
             str: MIME 타입 (기본값: "application/octet-stream")
         """
-        ext = Path(filename).suffix.lower()
+        ext = normalize_extension(filename)
         return FileMetadataUtils.MEDIA_TYPES.get(ext, "application/octet-stream")
 
 
@@ -196,7 +211,7 @@ class ImageTransformer:
             im.thumbnail((int(size), int(size)))
 
         # 3. 포맷 변환
-        ext = Path(filename).suffix.lower()
+        ext = normalize_extension(filename)
         fmt = "JPEG" if ext in (".jpg", ".jpeg") else ext.replace(".", "").upper() or "PNG"
 
         # JPEG 포맷 변환 시 알파 채널 제거

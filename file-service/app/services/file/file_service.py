@@ -19,6 +19,7 @@ from utils.common.file_utils import (
     DANGEROUS_EXTENSIONS,
     FileMetadataUtils,
     ImageTransformer,
+    normalize_extension,
     resolve_upload_base,
 )
 
@@ -71,7 +72,7 @@ class FileService:
         # 위험한 확장자 · 크기 검사 (SFTP 작업 이전에 차단)
         for file in files:
             if file.filename:
-                ext = Path(file.filename).suffix.lower()
+                ext = normalize_extension(file.filename)
                 if ext in DANGEROUS_EXTENSIONS:
                     raise BadRequestError(f"위험한 파일 형식입니다: {ext}")
             if file.size is not None and file.size > self.max_upload_bytes:
