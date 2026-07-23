@@ -20,6 +20,7 @@ from typing import Annotated, Any, Literal
 from core.logger import logger
 from graphs.results import AgentResult
 from langchain_core.messages import AIMessage
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
@@ -195,7 +196,9 @@ def build_res_domain_graph(
         )
         return {"sub_plan": plan, "sub_results": []}
 
-    async def _run_subagents_node(state: _DomainState) -> dict:
+    # config 는 wrap_agent_as_tool 의 요청 스코프 delegate_runtime 전달용 — ambient 전파에 의존하지
+    # 않고 tool.ainvoke 까지 명시로 스레딩한다 (plan_execute nodes 와 동일 패턴).
+    async def _run_subagents_node(state: _DomainState, config: RunnableConfig) -> dict:
         plan = state.get("sub_plan")
         if not plan or not plan.calls:
             return {"sub_results": []}
@@ -237,7 +240,7 @@ def build_res_domain_graph(
                 t0 = time.monotonic()
                 try:
                     result = await asyncio.wait_for(
-                        tool.ainvoke({"task": task_str}),
+                        tool.ainvoke({"task": task_str}, config=config),
                         # wrap_agent_as_tool 내부 타임아웃에 네트워크/LLM 오버헤드 마진 추가
                         # (outer wait_for 가 먼저 발동하면 cancel 누수)
                         timeout=sub_agent_timeout + outer_margin_s,
@@ -357,7 +360,7 @@ def build_res_domain_graph(
                 logger.info("[res:%s] evaluate %s → %s", domain_name, v.agent, v.verdict)
         return {"eval_result": evaluation}
 
-    async def _retry_subagents_node(state: _DomainState) -> dict:
+    async def _retry_subagents_node(state: _DomainState, config: RunnableConfig) -> dict:
         """retry verdict 인 sub-agent 를 refined_task 로 재실행."""
         evaluation: _ExecuteEvaluation | None = state.get("eval_result")
         if not evaluation:
@@ -374,7 +377,7 @@ def build_res_domain_graph(
             t0 = time.monotonic()
             try:
                 result = await asyncio.wait_for(
-                    tool.ainvoke({"task": v.refined_task}),
+                    tool.ainvoke({"task": v.refined_task}, config=config),
                     timeout=sub_agent_timeout + outer_margin_s,
                 )
                 elapsed = round(time.monotonic() - t0, 2)

@@ -4,7 +4,9 @@
     planner_llm → 도메인 에이전트 중 필요한 것들을 순차/병렬 호출 계획
     → 각 도메인 에이전트(RES pipeline) 실행 → generator_llm 이 결과 종합해 최종 답변
 
-초기화는 main.py lifespan 에서 1회 (MCP tool 수집 + 그래프 빌드 — Singleton 보유).
+초기화는 main.py lifespan 에서 1회 (MCP tool 수집 + 기본 그래프 프리웜).
+그래프는 (enabled_mcps, tool_map 버전) 키로 메모이즈 — 컴파일이 순수 CPU 로 이벤트루프를
+블록하므로 요청마다 재빌드하지 않는다 (#120).
 """
 
 from __future__ import annotations
@@ -43,7 +45,7 @@ from utils.agent.events import (
     trace_event,
 )
 from utils.agent.grounding import any_sourced, compute_grounding
-from utils.agent.mcp_classify import filter_tool_map
+from utils.agent.mcp_classify import ALL_MCP_SERVICES, filter_tool_map
 from utils.agent.numeric_guard import annotate_ungrounded_numbers
 from utils.agent.plan_utils import plan_domains
 from utils.agent.trace_metadata import build_trace_metadata
@@ -72,12 +74,14 @@ class AgentService:
         self._chat_history_repo = chat_history_repository
         self._response_cache = response_cache
         self._tool_map: dict = {}
+        self._tool_map_version = 0
+        self._graph_cache: dict[tuple[frozenset[str], int], object] = {}
         self._domain_registry = None
         self._subagent_registry = None
         self._langfuse_enabled = False
 
     async def initialize(self) -> None:
-        """MCP tool 수집 + domain registry 캐싱. lifespan 1회. 그래프는 요청마다 _build_graph."""
+        """MCP tool 수집 + domain registry 캐싱 + 기본 그래프(전체 MCP enabled) 프리웜. lifespan 1회."""
         await self._refresh_tool_map()
         self._subagent_registry, self._domain_registry = load_domain_registry(self._config.MULTI_AGENT_DOMAINS)
         logger.info(
@@ -85,6 +89,7 @@ class AgentService:
             len(self._tool_map),
             len(self._domain_registry),
         )
+        await self._build_graph(set(ALL_MCP_SERVICES))
         self._init_langfuse()
 
     async def _refresh_tool_map(self) -> None:
@@ -92,13 +97,20 @@ class AgentService:
         다음 요청에서 tool 이 그래프에 반영되도록 _build_graph 가 매 요청 호출한다.
 
         get_cached_tools 는 서버별 캐시라 수집값이 늘거나 유지만 될 뿐 줄지 않으므로(플래핑 없음),
-        전량 수집 후에는 네트워크 없이 캐시를 반환해 사실상 no-op 이다."""
+        전량 수집 후에는 네트워크 없이 캐시를 반환해 사실상 no-op 이다.
+
+        tool 집합이 변하면(서버 복구 — 단조 증가) 버전을 올리고 그래프 캐시를 비워
+        다음 _build_graph 가 새 tool 로 재빌드하게 한다."""
         try:
             tools = await get_cached_tools(self._mcp_client)
         except Exception as e:
             logger.warning("[AgentService] MCP tool 수집 실패 (%s) — 현 tool_map 유지", e)
             return
-        self._tool_map = {t.name: t for t in tools}
+        new_map = {t.name: t for t in tools}
+        if set(new_map) != set(self._tool_map):
+            self._tool_map_version += 1
+            self._graph_cache.clear()
+        self._tool_map = new_map
 
     def _init_langfuse(self) -> None:
         """langfuse 키 3종이 모두 있으면 client 를 초기화한다 — 이후 graph 실행이 langfuse 로 trace 된다."""
@@ -113,8 +125,18 @@ class AgentService:
         return [CallbackHandler()] if self._langfuse_enabled else []
 
     async def _build_graph(self, enabled_mcps: set[str]):
-        """enabled MCP 의 tool 만 바인딩한 Plan-Execute 그래프 구성 (요청마다)."""
+        """enabled MCP 의 tool 만 바인딩한 Plan-Execute 그래프 반환 — (enabled_mcps, tool_map 버전) 키 메모이즈.
+
+        컴파일(17개 StateGraph, 순수 CPU ~100ms)이 이벤트루프를 블록해 동시 SSE 스트림의 토큰
+        전송을 멈추므로 재사용한다 (#120). 캐시 키 상한은 enabled_mcps 조합(2^5) × tool_map
+        버전(버전업 시 clear) — eviction 불필요. 동시 miss 의 중복 빌드는 허용(결과 동일·기동
+        직후에만 드물게 발생 — 락 비용이 더 큼). 공유 그래프의 요청별 상태는
+        config["configurable"]["delegate_runtime"] 로 격리된다 (wrap_agent_as_tool 참조)."""
         await self._refresh_tool_map()  # 기동 시 다운됐던 MCP 서버 복구분을 반영 (전량 수집 후 no-op)
+        cache_key = (frozenset(enabled_mcps), self._tool_map_version)
+        cached_graph = self._graph_cache.get(cache_key)
+        if cached_graph is not None:
+            return cached_graph
         tool_map = filter_tool_map(self._tool_map, enabled_mcps)
         sub_agents = await create_sub_agents(
             router_llm=self._router_llm,
@@ -131,7 +153,7 @@ class AgentService:
             sub_agent_timeout=self._config.MA_SUB_AGENT_TIMEOUT_S,
             max_sub_calls=self._config.MA_DELEGATE_MAX_CALLS,
         )
-        return build_plan_execute_graph(
+        graph = build_plan_execute_graph(
             planner_llm=self._planner_llm,
             generator_llm=self._generator_llm,
             agents=domain_agents,
@@ -154,6 +176,14 @@ class AgentService:
             reduce_mode=self._config.MA_REDUCE_MODE,
             writer_llm=self._generator_llm,
         )
+        self._graph_cache[cache_key] = graph
+        logger.info(
+            "[AgentService] 그래프 빌드·캐시: enabled=%s, tool_map v%d (캐시 %d개)",
+            sorted(enabled_mcps),
+            self._tool_map_version,
+            len(self._graph_cache),
+        )
+        return graph
 
     async def _initial_messages(self, email: str, gid: int, question: str) -> list:
         """ai_chat_history (email,gid) 조회 → [Human,AI,...] + 현재 질문. 실패 시 단일턴."""
@@ -198,6 +228,8 @@ class AgentService:
             "recursion_limit": 100,
             "callbacks": self._stream_callbacks(),
             "run_name": "투자 리서치 멀티에이전트",
+            # delegate_runtime: 요청 스코프 sub-agent 호출한도 계수 — 캐시 그래프 공유 시 요청 격리 축
+            "configurable": {"delegate_runtime": {}},
             # [LangSmith 전용 관측] Threads 그룹핑 — (email, gid) 한 대화의 멀티턴 run 을 한 스레드로 묶음.
             # ⚠️ langfuse 전환 시: session_id metadata 는 LangSmith 컨벤션. langfuse 는 trace metadata 의
             #    session_id 를 자체 Sessions 로 인식하므로 키 유지 가능하나, 관측 백엔드 교체 시 동작 재확인 필요.
@@ -420,6 +452,8 @@ class AgentService:
             "recursion_limit": 100,
             "callbacks": self._stream_callbacks(),
             "run_name": "투자 리서치 멀티에이전트",
+            # delegate_runtime: 요청 스코프 sub-agent 호출한도 계수 — 캐시 그래프 공유 시 요청 격리 축
+            "configurable": {"delegate_runtime": {}},
             # [LangSmith 전용 관측] Threads 그룹핑 — (email, gid) 한 대화의 멀티턴 run 을 한 스레드로 묶음.
             # ⚠️ langfuse 전환 시: session_id metadata 는 LangSmith 컨벤션. langfuse 는 trace metadata 의
             #    session_id 를 자체 Sessions 로 인식하므로 키 유지 가능하나, 관측 백엔드 교체 시 동작 재확인 필요.

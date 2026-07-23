@@ -148,6 +148,22 @@ jobs:
         working-directory: multi-agent-service
         run: uv run python scripts/verify_res_failclosed.py
 
+  # 그래프 메모이즈 계약 (키 identity 재사용·tool 버전 무효화·delegate_runtime 요청 격리·동시 요청 비혼입 — #120)
+  graph-memoization:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Graph memoization check
+        working-directory: multi-agent-service
+        run: uv run python scripts/verify_graph_memoization.py
+
   # 멀티모달 list content 정규화 계약 (LLM/메시지 .content str 가정 방어 — payload·narrative·final_answer — #30)
   content-normalization:
     runs-on: ubuntu-latest

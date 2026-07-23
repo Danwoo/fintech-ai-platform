@@ -25,6 +25,7 @@ async def _invoke_agent_safe(
     react_recursion_limit: int = 20,
     tool_trace_sink: list[dict[str, Any]] | None = None,
     stream_writer: Any = None,
+    parent_config: dict[str, Any] | None = None,
 ) -> AgentResult:
     """에이전트 안전 호출 — 타임아웃/예외 처리 + 지수 백오프 재시도."""
     from langchain_core.messages import AIMessage
@@ -38,6 +39,9 @@ async def _invoke_agent_safe(
         try:
             # run_name=도메인명 — LangSmith/langfuse trace 트리에서 generic "LangGraph" 대신 도메인 식별
             invoke_config: dict[str, Any] = {"recursion_limit": react_recursion_limit, "run_name": agent_name}
+            # 요청 스코프 configurable(delegate_runtime)을 도메인 그래프까지 명시 전달 — ambient 전파 비의존
+            if parent_config and parent_config.get("configurable"):
+                invoke_config["configurable"] = parent_config["configurable"]
             if tool_trace_sink is not None or stream_writer is not None:
                 invoke_config["callbacks"] = [
                     _ToolTraceCallback(
