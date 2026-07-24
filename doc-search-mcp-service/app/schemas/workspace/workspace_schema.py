@@ -11,3 +11,8 @@ class IngestOut(BaseModel):
     status: Literal["indexed", "empty", "failed"] = Field(
         description="처리 상태 — indexed(청크 색인 완료) / empty(텍스트 추출 0건: 스캔 PDF·빈 문서, 구조 파서 필요) / failed"
     )
+
+
+class WorkspaceDeleteOut(BaseModel):
+    atch_file_id: str = Field(description="회수 대상 첨부 그룹 ID")
+    deleted_count: int = Field(description="삭제된 청크 수 (MOCK 모드·미색인 파일은 0)")

@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     SFTP_BASE_PATH: str = "/upload"
     FILE_SERVICE_URL: str = "http://localhost:8100"
 
+    # doc-search-mcp-service (리서치 문서 인제스트·청크 회수 — 내부 서비스 토큰 호출)
+    DOC_SEARCH_SERVICE_URL: str = "http://localhost:8008"
+
     JWT_SECRET: str
 
     VICTORIALOGS_URL: str = ""

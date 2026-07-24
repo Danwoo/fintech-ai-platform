@@ -14,7 +14,7 @@ from core.exceptions import UnauthorizedError
 from fastapi.concurrency import run_in_threadpool
 from repositories.workspace.workspace_chunk_repository import WorkspaceChunkRepository
 from schemas.vector_search.vector_search_schema import TopicSearchIn, TopicSearchItem, TopicSearchOut
-from schemas.workspace.workspace_schema import IngestOut
+from schemas.workspace.workspace_schema import IngestOut, WorkspaceDeleteOut
 from utils.ingest.chunking import Chunk, chunk_pages
 from utils.vector_search.mock_data import mock_topic_out
 
@@ -78,6 +78,17 @@ class WorkspaceService:
         await self.repository.ensure_table()
         await self.repository.insert_chunks(rows)
         return IngestOut(job_ref=atch_file_id, chunk_count=len(rows), status="indexed")
+
+    async def delete_by_file(self, atch_file_id: str, company_id: int) -> WorkspaceDeleteOut:
+        """파일(첨부 그룹) 단위 청크 회수 — file-service 파일 삭제에 맞춘 크로스서비스 연쇄.
+
+        MOCK 모드(use_real_api=false)는 색인 자체가 없으므로 no-op(0)로 응답한다. 실모드는 repository 가
+        company_id 로 스코프하며(fail-closed), atch_file_id 그룹의 청크를 회수한다.
+        """
+        if not self.use_real_api:
+            return WorkspaceDeleteOut(atch_file_id=atch_file_id, deleted_count=0)
+        deleted = await self.repository.delete_by_file(atch_file_id, company_id)
+        return WorkspaceDeleteOut(atch_file_id=atch_file_id, deleted_count=deleted)
 
     async def search_topic(self, params: TopicSearchIn, company_id: int | None) -> TopicSearchOut:
         if not self.use_real_api:
