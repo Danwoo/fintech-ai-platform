@@ -1,18 +1,18 @@
-// app/api/external/category/[category_id]/route.ts
+// app/api/external/backend/portfolio/[portfolio_id]/holding/[ticker]/route.ts
 import { env } from "@/env";
 import { withAuth } from "@/lib/auth/withAuth";
 import { NextRequest } from "next/server";
 import { proxyApiRequest } from "@/utils/common/api/server";
 import { createSuccessResponse, createErrorResponse } from "@/utils/common/api/responses";
 
-const BACKEND_URL = env.BACKEND_SERVICE_URL + "/category";
+const BACKEND_URL = env.BACKEND_SERVICE_URL + "/portfolio";
 
-// [GET] 카테고리 단건 조회
+// [GET] 보유종목 단건 조회
 const getHandler = async (req: NextRequest, session: any, params?: any) => {
   const operation = "GET";
 
   try {
-    const result = await proxyApiRequest(`${BACKEND_URL}/${params.category_id}`, {
+    const result = await proxyApiRequest(`${BACKEND_URL}/${params.portfolio_id}/holding/${params.ticker}`, {
       method: operation,
       headers: { Authorization: `Bearer ${session.accessToken}` },
     });
@@ -23,13 +23,13 @@ const getHandler = async (req: NextRequest, session: any, params?: any) => {
   }
 };
 
-// [PUT] 카테고리 수정
+// [PUT] 보유종목 수정
 const putHandler = async (req: NextRequest, session: any, params?: any) => {
   const operation = "PUT";
 
   try {
     const body = await req.json();
-    const result = await proxyApiRequest(`${BACKEND_URL}/${params.category_id}`, {
+    const result = await proxyApiRequest(`${BACKEND_URL}/${params.portfolio_id}/holding/${params.ticker}`, {
       method: operation,
       data: body,
       headers: { Authorization: `Bearer ${session.accessToken}` },
@@ -41,12 +41,12 @@ const putHandler = async (req: NextRequest, session: any, params?: any) => {
   }
 };
 
-// [DELETE] 카테고리 삭제
+// [DELETE] 보유종목 삭제
 const deleteHandler = async (req: NextRequest, session: any, params?: any) => {
   const operation = "DELETE";
 
   try {
-    const result = await proxyApiRequest(`${BACKEND_URL}/${params.category_id}`, {
+    const result = await proxyApiRequest(`${BACKEND_URL}/${params.portfolio_id}/holding/${params.ticker}`, {
       method: operation,
       headers: { Authorization: `Bearer ${session.accessToken}` },
     });

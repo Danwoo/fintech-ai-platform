@@ -3,24 +3,24 @@
 import { useFormState } from "@/hooks/shared/useFormState";
 import { Button, TextBox, SelectBox, NumberBox, TextArea, TabPanel, TabContent } from "@/components/shared/ui";
 import { TableRow, TableCell, TableGroup } from "@/components/shared/Layout";
-import { Category } from "@/schemas/category/category";
-import CategoryProductGrid from "./CategoryProductGrid";
+import { Portfolio } from "@/schemas/portfolio/portfolio";
+import PortfolioHoldingGrid from "./PortfolioHoldingGrid";
 
 interface Props {
   isNew: boolean;
-  initialData: Partial<Category>;
-  onSubmit: (data: Category) => Promise<boolean>;
+  initialData: Partial<Portfolio>;
+  onSubmit: (data: Portfolio) => Promise<boolean>;
   onCancel?: () => void;
   codeList?: any;
 }
 
-export default function CategoryDetailForm({ initialData, isNew, codeList, onSubmit, onCancel }: Props) {
-  const { formData, handleFieldChange, getFieldProps, handleSubmit } = useFormState<Category>(initialData);
+export default function PortfolioDetailForm({ initialData, isNew, codeList, onSubmit, onCancel }: Props) {
+  const { formData, handleFieldChange, getFieldProps, handleSubmit } = useFormState<Portfolio>(initialData);
 
-  const canAccessSubTabs = !isNew && !!formData.category_id?.trim();
+  const canAccessSubTabs = !isNew && !!formData.portfolio_id?.trim();
   const tabs = [
-    { id: "basic", text: "카테고리", icon: "edit" },
-    { id: "products", text: "상품", icon: "hierarchy", disabled: !canAccessSubTabs },
+    { id: "basic", text: "포트폴리오", icon: "edit" },
+    { id: "holdings", text: "보유종목", icon: "hierarchy", disabled: !canAccessSubTabs },
   ];
 
   return (
@@ -36,16 +36,16 @@ export default function CategoryDetailForm({ initialData, isNew, codeList, onSub
             </div>
 
             <div className="flex-1 overflow-auto">
-              <TableGroup title="카테고리 정보">
+              <TableGroup title="포트폴리오 정보">
                 <TableRow>
-                  <TableCell label="카테고리ID" required>
+                  <TableCell label="포트폴리오ID" required>
                     <TextBox
-                      fieldName="category_id"
-                      value={formData.category_id}
+                      fieldName="portfolio_id"
+                      value={formData.portfolio_id}
                       readOnly={!isNew}
                       onValueChanged={(_field, value) =>
                         handleFieldChange(
-                          "category_id",
+                          "portfolio_id",
                           String(value ?? "")
                             .replace(/\s/g, "")
                             .toLowerCase(),
@@ -54,10 +54,10 @@ export default function CategoryDetailForm({ initialData, isNew, codeList, onSub
                       getFieldProps={getFieldProps}
                     />
                   </TableCell>
-                  <TableCell label="카테고리명" required>
+                  <TableCell label="포트폴리오명" required>
                     <TextBox
-                      fieldName="category_nm"
-                      value={formData.category_nm}
+                      fieldName="portfolio_nm"
+                      value={formData.portfolio_nm}
                       onValueChanged={handleFieldChange}
                       getFieldProps={getFieldProps}
                     />
@@ -101,7 +101,7 @@ export default function CategoryDetailForm({ initialData, isNew, codeList, onSub
           </div>
         </TabContent>
 
-        <TabContent tabId="products">
+        <TabContent tabId="holdings">
           <div className="h-full flex flex-col">
             <div className="flex-shrink-0 mb-2">
               <div className="flex gap-2 justify-end">
@@ -110,11 +110,11 @@ export default function CategoryDetailForm({ initialData, isNew, codeList, onSub
             </div>
 
             <div className="flex-1 min-h-0 flex flex-col">
-              <TableGroup title="상품 목록" mode="flex">
+              <TableGroup title="보유종목 목록" mode="flex">
                 <TableRow>
                   <TableCell>
-                    <CategoryProductGrid
-                      categoryId={formData.category_id!}
+                    <PortfolioHoldingGrid
+                      portfolioId={formData.portfolio_id!}
                       editable={true}
                       height="100%"
                       codeList={codeList}

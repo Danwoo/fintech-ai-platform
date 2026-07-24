@@ -2,17 +2,17 @@
 
 import { Button } from "@/components/shared/ui";
 import { TableRow, TableCell, TableGroup } from "@/components/shared/Layout";
-import CategoryProductGrid from "./CategoryProductGrid";
-import { CategoryOut } from "@/schemas/category/category";
+import PortfolioHoldingGrid from "./PortfolioHoldingGrid";
+import { PortfolioOut } from "@/schemas/portfolio/portfolio";
 
 interface Props {
-  data: CategoryOut;
+  data: PortfolioOut;
   onEdit: () => void;
   onDelete?: () => void;
   codeList?: any;
 }
 
-export default function CategoryDetailView({ data, onEdit, onDelete, codeList }: Props) {
+export default function PortfolioDetailView({ data, onEdit, onDelete, codeList }: Props) {
   return (
     <div className="h-full flex flex-col">
       <div className="flex-shrink-0 mb-2">
@@ -23,10 +23,10 @@ export default function CategoryDetailView({ data, onEdit, onDelete, codeList }:
       </div>
 
       <div className="flex-1 min-h-0 overflow-auto">
-        <TableGroup title="카테고리 정보">
+        <TableGroup title="포트폴리오 정보">
           <TableRow>
-            <TableCell label="카테고리ID">{data.category_id}</TableCell>
-            <TableCell label="카테고리명">{data.category_nm}</TableCell>
+            <TableCell label="포트폴리오ID">{data.portfolio_id}</TableCell>
+            <TableCell label="포트폴리오명">{data.portfolio_nm}</TableCell>
           </TableRow>
           <TableRow>
             <TableCell label="정렬순서">{data.sort_ordr}</TableCell>
@@ -51,10 +51,15 @@ export default function CategoryDetailView({ data, onEdit, onDelete, codeList }:
           </TableRow>
         </TableGroup>
 
-        <TableGroup title="상품 목록">
+        <TableGroup title="보유종목 목록">
           <TableRow>
             <TableCell colSpan={4}>
-              <CategoryProductGrid categoryId={data.category_id} editable={false} height="500px" codeList={codeList} />
+              <PortfolioHoldingGrid
+                portfolioId={data.portfolio_id}
+                editable={false}
+                height="500px"
+                codeList={codeList}
+              />
             </TableCell>
           </TableRow>
         </TableGroup>
