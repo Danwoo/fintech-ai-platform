@@ -56,7 +56,7 @@ class MaxRequestBodySizeMiddleware(BaseHTTPMiddleware):
                         f"Content-Length {content_length} > {limit} 조기 거절 (파싱 전)"
                     )
                     return JSONResponse(
-                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                         content={
                             "detail": (
                                 "요청이 너무 큽니다. 한 번에 보낼 수 있는 요청 크기"

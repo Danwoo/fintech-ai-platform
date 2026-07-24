@@ -67,7 +67,7 @@ class GoneError(HTTPError):
 
 
 class RequestEntityTooLargeError(HTTPError):
-    status_code = status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
+    status_code = status.HTTP_413_CONTENT_TOO_LARGE
     default_message = "요청 데이터가 너무 큽니다."
 
 
@@ -77,12 +77,12 @@ class UnsupportedMediaTypeError(HTTPError):
 
 
 class RequestedRangeNotSatisfiableError(HTTPError):
-    status_code = status.HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE
+    status_code = status.HTTP_416_RANGE_NOT_SATISFIABLE
     default_message = "요청한 범위가 올바르지 않습니다."
 
 
 class UnprocessableEntityError(HTTPError):
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     default_message = "입력 값을 확인해주세요."
 
 
