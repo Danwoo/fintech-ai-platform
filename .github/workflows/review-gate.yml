@@ -82,6 +82,33 @@ jobs:
             *"|review: passed|"*)     STATE=success; DESC="독립 리뷰 통과 (review: passed)" ;;
             *)                        STATE=pending; DESC="독립 리뷰 대기 중" ;;
           esac
+
+          # ── 문서 전용 PR 처방 (설계 공백 해소, review-gate 가 유일 작성자라 여기서 접는다) ──
+          # cross-review 는 paths-ignore(**.md·docs/**)로 문서 PR 을 리뷰하지 않아(문서 AI 루브릭 공백)
+          # review: passed 가 안 붙고 게이트가 영영 pending 에 갇힌다(실측 #150). 문서는 AI 리뷰 대신
+          # 사람이 읽고 머지하는 게 리뷰다 → 게이트를 success 로 열고 human: merge 로 사람 대기열에 표시.
+          # ⚠ 별도 워크플로로 하면 review-gate 와 같은 상태를 두 곳이 써서 경합한다 — review-gate 가
+          #   이 상태의 유일 작성자라 여기 접어 경합을 없앤다. github.token 으로 statuses 를 직접 쓰므로
+          #   'GITHUB_TOKEN 라벨이 워크플로를 못 깨운다' 제약도 안 탄다(상태를 깨울 필요 없이 직접 씀).
+          # fail-safe: STATE 가 이미 success(라벨 있음)면 무관. 변경 파일 조회 실패 시 override 안 함
+          #   (현행 pending 유지 — 코드 PR 경로는 이 블록이 절대 건드리지 않는다).
+          if [ "$STATE" = "pending" ]; then
+            files=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' 2>/dev/null || true)
+            # 문서 아닌 파일 목록 (대소문자 무시 -i — README.MD 같은 엣지 포함). 이 목록이 비고
+            # 파일이 하나 이상이면 = 문서 전용. (이중부정 grep -q 는 플래그 조합 엣지가 있어 피한다.)
+            nondoc=$(printf '%s\n' "$files" | grep -ivE '\.md$|^docs/' || true)
+            if [ -n "$files" ] && [ -z "$nondoc" ]; then
+              STATE=success; DESC="문서 전용 PR — 사람 머지 (교차 리뷰 스킵, 문서 루브릭 공백)"
+              # 사람 대기열 표시 (best-effort — 이미 있으면 재부착 안 함, 없을 때만). fork 등 write
+              # 불가여도 상태는 이미 success 라 머지 가능(라벨은 보조 신호).
+              case "|$LABELS|" in
+                *"|human: merge|"*) : ;;
+                *) gh pr edit "$PR" --repo "$REPO" --add-label "human: merge" 2>/dev/null || true ;;
+              esac
+              echo "문서 전용 PR — 게이트를 success 로 열고 사람 머지 대기열로 라우팅"
+            fi
+          fi
+
           gh api "repos/$REPO/statuses/$SHA" \
             -f state="$STATE" -f context=review-gate -f description="$DESC" >/dev/null
           echo "review-gate = $STATE"

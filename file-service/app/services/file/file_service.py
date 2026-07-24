@@ -32,6 +32,7 @@ class FileService:
         self.file_store = file_store
         self.sftp_base_path = settings.SFTP_BASE_PATH
         self.max_upload_bytes = settings.max_upload_bytes
+        self.max_upload_files = settings.MAX_UPLOAD_FILES
 
     def select_file_list(self, args: dict) -> tuple[list, int]:
         """파일 목록 조회"""
@@ -68,6 +69,13 @@ class FileService:
         files = args["files"]
         atch_file_id = args.get("atch_file_id")
         user_id = args["user_id"]
+
+        # 파일 개수 남용 차단선 (SFTP·파싱 이전에 조기 차단). 작은 파일 수천 개가 바디 상한 아래로
+        # 통과해 개수만큼 비용을 무는 것을 막는다 (#144). 파일당 크기 검사와 독립적인 별개 축이다.
+        if len(files) > self.max_upload_files:
+            raise RequestEntityTooLargeError(
+                f"한 번에 올릴 수 있는 파일 개수({self.max_upload_files}개)를 초과했습니다: {len(files)}개"
+            )
 
         # 위험한 확장자 · 크기 검사 (SFTP 작업 이전에 차단)
         for file in files:

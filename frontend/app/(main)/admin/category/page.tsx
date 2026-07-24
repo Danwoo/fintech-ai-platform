@@ -1,5 +1,5 @@
-import CategoryContainer from "@/components/features/Category/CategoryContainer";
+import PortfolioContainer from "@/components/features/Portfolio/PortfolioContainer";
 
 export default function CategoryPage() {
-  return <CategoryContainer />;
+  return <PortfolioContainer />;
 }

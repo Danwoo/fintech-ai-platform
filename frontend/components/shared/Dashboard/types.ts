@@ -17,9 +17,15 @@ export interface ChartSeriesConfig {
   yAxisName: string; // Y축 이름
   decimals?: number; // 소수점 자릿수
   axisLabelDecimals?: number; // Y축 라벨 소수점 자릿수
+  // 관리선(markLine). upl/lpl 은 각각 독립적 — 한쪽만 주면 그 선만 그린다
+  // (예: drawdown 은 하한 경보선만 필요). 0 도 유효한 값으로 그린다.
   limits?: {
-    upl: number; // Upper Process Limit
-    lpl: number; // Lower Process Limit
+    upl?: number; // 상단선 값 (Upper Process Limit). 생략 시 상단선 미표시
+    lpl?: number; // 하단선 값 (Lower Process Limit). 생략 시 하단선 미표시
+    uplColor?: string; // 상단선 의미색 (기본 빨강). 지표에 맞게 지정
+    lplColor?: string; // 하단선 의미색 (기본 파랑). 지표에 맞게 지정
+    uplLabel?: string; // 상단선 라벨 (기본 "U"). 색만이 아닌 텍스트로 의미 병기
+    lplLabel?: string; // 하단선 라벨 (기본 "L")
   };
 }
 

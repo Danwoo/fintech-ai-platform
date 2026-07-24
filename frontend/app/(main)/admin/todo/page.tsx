@@ -1,5 +1,5 @@
-import TodoContainer from "@/components/features/Todo/TodoContainer";
+import WatchlistContainer from "@/components/features/Watchlist/WatchlistContainer";
 
 export default function Page() {
-  return <TodoContainer />;
+  return <WatchlistContainer />;
 }

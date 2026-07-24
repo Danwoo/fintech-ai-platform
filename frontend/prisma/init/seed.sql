@@ -46,12 +46,22 @@ VALUES
 ('example.com',       1, CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR');
 
 -- 2. 사용자 (Better Auth 통합)
+--    admin    — 시스템관리자(벤더). 특정 회사에 속하지 않으므로 company_id = NULL.
+--    operator — 테넌트 소속 업무 사용자. company_id 가 있어야 업무 메뉴(TN_CompanyMenu 교집합)와
+--               테넌트 API(JWT company_id 요구)가 열린다. 역할 분리를 위해 admin 과 별도 계정으로 둔다.
 INSERT INTO TN_User (id, email, name, company_id, use_at, appr_at, emailVerified, reg_dt, reg_id, mod_dt, mod_id)
-VALUES ('019d9c31-bdc9-7706-b940-246010c814d7', 'admin@example.com', '관리자', NULL, 'Y', 'Y', 0, CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR');
+VALUES
+('019d9c31-bdc9-7706-b940-246010c814d7', 'admin@example.com', '관리자', NULL, 'Y', 'Y', 0, CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('019d9c31-be10-7a1c-8f3d-4b6a2c9e5d10', 'operator@example.com', '운영자', 1, 'Y', 'Y', 0, CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR');
 
--- 2-1. Better Auth 계정 (비밀번호: changeme1234, scrypt 해시)
+-- 2-1. Better Auth 계정 (비밀번호: 둘 다 changeme1234, scrypt 해시)
+--      password 는 `salt:key` 한 값에 salt 가 들어 있고 사용자 식별자가 섞이지 않는다
+--      (hashPassword(password) — frontend/lib/auth/authUtils.ts). 그래서 같은 값을 두 계정이 공유해도
+--      각각 changeme1234 로 로그인된다. 데모용 고정 비밀번호이므로 salt 재사용을 감수한다.
 INSERT INTO BA_Account (id, accountId, providerId, userId, password, createdAt, updatedAt)
-VALUES ('dmx10fwDIJInixzkC3XbxxGM7FOMSdQQ', '019d9c31-bdc9-7706-b940-246010c814d7', 'credential', '019d9c31-bdc9-7706-b940-246010c814d7', '96b3e92b13e00d02f4aaa317b8b381fb:79e41a2de1681fbdb8ae02c61316ace74f04b71abfdae97fbe81099a7943b481ff6338ab5de90778eddc72dc0858e6893a277b540cd4bb8e2f765f228476e3fa', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+VALUES
+('dmx10fwDIJInixzkC3XbxxGM7FOMSdQQ', '019d9c31-bdc9-7706-b940-246010c814d7', 'credential', '019d9c31-bdc9-7706-b940-246010c814d7', '96b3e92b13e00d02f4aaa317b8b381fb:79e41a2de1681fbdb8ae02c61316ace74f04b71abfdae97fbe81099a7943b481ff6338ab5de90778eddc72dc0858e6893a277b540cd4bb8e2f765f228476e3fa', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+('019d9c31-be10-7b2e-9c05-7d1e4a8f6b32', '019d9c31-be10-7a1c-8f3d-4b6a2c9e5d10', 'credential', '019d9c31-be10-7a1c-8f3d-4b6a2c9e5d10', '96b3e92b13e00d02f4aaa317b8b381fb:79e41a2de1681fbdb8ae02c61316ace74f04b71abfdae97fbe81099a7943b481ff6338ab5de90778eddc72dc0858e6893a277b540cd4bb8e2f765f228476e3fa', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 -- 3. 메뉴
 INSERT INTO TN_Menu (menu_id, menu_nm, upper_menu_id, menu_level, sort_ordr, use_at, url, icon, reg_dt, reg_id, mod_dt, mod_id)
@@ -70,14 +80,36 @@ VALUES
 ('msys1005', '사용자관리',   'msys0000', 2, 50, 'Y', 'admin/common/system/adminuser', 'group',       CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
 ('msys1006', '메일발송로그', 'msys0000', 2, 60, 'Y', 'admin/common/system/email-log', 'email',       CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR');
 
+-- 3-1. 회사별 메뉴 (회사가 부여받은 업무 기능)
+--      네비게이션은 일반 사용자에게 "권한 메뉴 ∩ 회사 메뉴" 만 노출한다
+--      (frontend/app/api/common/system/menu/navigation/route.ts 의 isVisible).
+--      시스템 메뉴(msys*)는 회사 매핑 대상이 아니라 권한만으로 결정되므로 여기 넣지 않는다.
+--      상위 메뉴(mbiz0000)도 넣지 않는다 — isVisible 은 menu_level 2 에만 적용되고,
+--      상위는 보이는 하위가 하나라도 있으면 자동 노출된다.
+INSERT INTO TN_CompanyMenu (company_id, menu_id, reg_dt, reg_id, mod_dt, mod_id)
+VALUES
+(1, 'mbiz1001', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+(1, 'mbiz1002', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+(1, 'mbiz1003', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+(1, 'mbiz1004', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+(1, 'mbiz1005', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR');
+
 -- 4. 권한별 회원
 INSERT INTO TN_AuthorMember (author_id, user_id, reg_dt, reg_id, mod_dt, mod_id)
-VALUES ('admin', 'admin@example.com', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR');
+VALUES
+('admin', 'admin@example.com', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('operator', 'operator@example.com', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR');
 
 -- 5. 권한별 메뉴
 INSERT INTO TN_AuthorMenu (author_id, menu_id, reg_dt, reg_id, mod_dt, mod_id)
 VALUES
+-- operator: 전 업무 화면 접근 (mbiz1001~1005). isVisible = 권한메뉴 ∩ 회사메뉴 라, TN_CompanyMenu 만
+-- 부여하고 여기를 mbiz1001 로 두면 나머지 업무 화면(카테고리·대시보드·개발활동·스케줄러)이 안 보인다.
 ('operator', 'mbiz1001', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('operator', 'mbiz1002', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('operator', 'mbiz1003', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('operator', 'mbiz1004', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('operator', 'mbiz1005', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
 ('user', 'mbiz1001', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR');
 
 -- 6. 그룹코드 (전 프로젝트 공통코드 합집합 + 템플릿 데모 9900번대)
@@ -110,6 +142,12 @@ VALUES
 ('4102', '제안타입', 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
 ('4200', '중요도타입', 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
 ('4300', '채팅가능상태', 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+
+-- [관심종목] Watchlist 폼 드롭다운 (값은 backend-service/alembic/init/init.sql 의 TN_Watchlist 시드에서 도출)
+('5000', '관심종목 시장', 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5001', '관심종목 섹터', 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5002', '관심종목 통화', 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5003', '관심종목 우선순위', 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
 
 -- [템플릿 데모] 성별/부서/혈액형/취미
 ('9900', '성별', 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
@@ -213,6 +251,29 @@ VALUES
 ('4200', '3', '필수', 4, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
 ('4300', 'active', '활성', 1, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
 ('4300', 'inactive', '비활성', 2, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+
+-- [관심종목] Watchlist 폼 드롭다운 — code 값 = TN_Watchlist 시드의 실제 저장값(그리드/뷰 lookup 이 code 로 매칭)
+--   시장: 시드는 KOSPI·NASDAQ 사용 → KOSDAQ·NYSE 를 보완으로 추가
+('5000', 'KOSPI', 'KOSPI', 1, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5000', 'KOSDAQ', 'KOSDAQ', 2, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5000', 'NASDAQ', 'NASDAQ', 3, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5000', 'NYSE', 'NYSE', 4, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+--   섹터: 시드에 등장한 실제 섹터 6종 (한/영 혼재 — 저장값 그대로 code 로 사용)
+('5001', 'IT/반도체', 'IT/반도체', 1, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5001', '인터넷', '인터넷', 2, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5001', '자동차', '자동차', 3, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5001', '화학/2차전지', '화학/2차전지', 4, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5001', 'Technology', 'Technology(기술)', 5, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5001', 'Semiconductors', 'Semiconductors(반도체)', 6, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+--   통화: 시드는 KRW·USD 사용
+('5002', 'KRW', '원화(KRW)', 1, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5002', 'USD', '미국 달러(USD)', 2, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+--   우선순위: 시드는 '1'/'2'/'3' 사용. 시드에서 '1'이 대형주(삼성전자·SK하이닉스·Apple·MSFT·NVDA),
+--   '2'가 NAVER·현대차, '3'이 LG화학에 붙은 걸 근거로 1=높음/2=중간/3=낮음 으로 가정(추정 라벨).
+--   ※ 기존 4200('중요도타입': 0=참고/1=일반/2=중요/3=필수)은 의미가 어긋나 재사용하지 않고 전용 그룹 신설.
+('5003', '1', '높음', 1, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5003', '2', '중간', 2, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5003', '3', '낮음', 3, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
 
 -- [템플릿 데모] 성별/부서/혈액형/취미
 ('9900', '001', '남', 1, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
