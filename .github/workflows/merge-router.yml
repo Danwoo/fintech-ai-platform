@@ -63,7 +63,9 @@ name: merge-router
 
 on:
   pull_request:
-    types: [labeled, unlabeled, synchronize, edited]   # edited: base 변경 시 disarm (diff 전체가 바뀜 — synchronize 와 동일 처리)
+    # closed: 머지 완료 후 연결 이슈 종료 (아래 close-linked-issues — GitHub 네이티브 자동 종료가
+    #   Actions 봇 머지에선 발동하지 않는 갭을 메운다)
+    types: [labeled, unlabeled, synchronize, edited, closed]   # edited: base 변경 시 disarm (diff 전체가 바뀜 — synchronize 와 동일 처리)
 
 permissions:
   contents: write        # 자동 머지 arm/disarm (gh pr merge --auto / --disable-auto)
@@ -205,3 +207,40 @@ jobs:
             gh pr comment "$PR" --repo "$REPO" --body "**사람 머지 대기열 등록** (\`human: merge\`) — ${WHY}. 판정 대상 ${SHA} · 위험 판독: ${EVIDENCE:-연결 이슈 없음}"
             echo "사람 대기열: $WHY"
           fi
+
+  # 머지된 PR 이 Closes 로 참조한 이슈를 닫는다.
+  #
+  # 왜 필요한가 (실측 6건): GitHub 네이티브 "Closes #N 자동 종료"는 **사람이 머지하면 발동하지만
+  # Actions 봇(자동 머지)이 머지하면 발동하지 않는다** — #80·#54·#121·#104·#83·#109 가 전부 머지
+  # 후에도 OPEN 으로 남아 손으로 닫아야 했다. 단순 위생 문제가 아니라 실제 비용을 냈다: 이미
+  # 해소된 #71 이 열린 채 남아 있어 워커를 헛디스패치했다(스테일 이슈 → 낭비된 작업).
+  #
+  # 멱등: 사람이 머지해 GitHub 이 이미 닫은 경우엔 state 가 OPEN 이 아니라 건너뛴다.
+  close-linked-issues:
+    name: "chore: close-linked-issues"
+    if: ${{ github.event.action == 'closed' && github.event.pull_request.merged == true }}
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write        # 이 잡은 이슈 종료만 한다 (contents·pull-requests 불요 — 최소권한)
+    steps:
+      - name: 머지된 PR 의 연결 이슈 종료
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -uo pipefail
+          NAME="${REPO#*/}"
+          # closing 키워드(Closes/Fixes/Resolves)로 연결된 이슈만. Refs 는 안 잡힌다(의도 — worker 규약이 Closes 필수).
+          issues=$(gh api graphql -f query='
+            query($o:String!,$n:String!,$pr:Int!){ repository(owner:$o,name:$n){
+              pullRequest(number:$pr){ closingIssuesReferences(first:20){ nodes{ number state } } } } }' \
+            -f o="$OWNER" -f n="$NAME" -F pr="$PR" \
+            --jq '.data.repository.pullRequest.closingIssuesReferences.nodes[] | select(.state=="OPEN") | .number' 2>/dev/null || true)
+          [ -z "$issues" ] && { echo "닫을 연결 이슈 없음 (Closes 미참조이거나 이미 종료됨)"; exit 0; }
+          for N in $issues; do
+            gh issue close "$N" --repo "$REPO" --reason completed \
+              --comment "PR #${PR} 머지로 해소." \
+              && echo "이슈 #$N 종료 (PR #$PR 머지)"
+          done
