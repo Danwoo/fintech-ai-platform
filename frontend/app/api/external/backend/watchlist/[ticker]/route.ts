@@ -1,22 +1,20 @@
+// app/api/external/backend/watchlist/[ticker]/route.ts
 import { env } from "@/env";
-// app/api/external/todo/[mber_no]/route.ts
 import { withAuth } from "@/lib/auth/withAuth";
 import { NextRequest } from "next/server";
 import { proxyApiRequest } from "@/utils/common/api/server";
 import { createSuccessResponse, createErrorResponse } from "@/utils/common/api/responses";
 
-const BACKEND_URL = env.BACKEND_SERVICE_URL + "/todo";
+const BACKEND_URL = env.BACKEND_SERVICE_URL + "/watchlist";
 
-// [GET] 단건 조회 핸들러
+// [GET] 관심종목 단건 조회
 const getHandler = async (req: NextRequest, session: any, params?: any) => {
   const operation = "GET";
 
   try {
-    const result = await proxyApiRequest(`${BACKEND_URL}/${params.mber_no}`, {
+    const result = await proxyApiRequest(`${BACKEND_URL}/${params.ticker}`, {
       method: operation,
-      headers: {
-        Authorization: `Bearer ${session.accessToken}`,
-      },
+      headers: { Authorization: `Bearer ${session.accessToken}` },
     });
 
     return createSuccessResponse(result, operation);
@@ -25,18 +23,16 @@ const getHandler = async (req: NextRequest, session: any, params?: any) => {
   }
 };
 
-// [PUT] 수정 핸들러
+// [PUT] 관심종목 수정
 const putHandler = async (req: NextRequest, session: any, params?: any) => {
   const operation = "PUT";
 
   try {
     const body = await req.json();
-    const result = await proxyApiRequest(`${BACKEND_URL}/${params.mber_no}`, {
+    const result = await proxyApiRequest(`${BACKEND_URL}/${params.ticker}`, {
       method: operation,
       data: body,
-      headers: {
-        Authorization: `Bearer ${session.accessToken}`,
-      },
+      headers: { Authorization: `Bearer ${session.accessToken}` },
     });
 
     return createSuccessResponse(result, operation);
@@ -45,16 +41,14 @@ const putHandler = async (req: NextRequest, session: any, params?: any) => {
   }
 };
 
-// [DELETE] 삭제 핸들러
+// [DELETE] 관심종목 삭제
 const deleteHandler = async (req: NextRequest, session: any, params?: any) => {
   const operation = "DELETE";
 
   try {
-    const result = await proxyApiRequest(`${BACKEND_URL}/${params.mber_no}`, {
+    const result = await proxyApiRequest(`${BACKEND_URL}/${params.ticker}`, {
       method: operation,
-      headers: {
-        Authorization: `Bearer ${session.accessToken}`,
-      },
+      headers: { Authorization: `Bearer ${session.accessToken}` },
     });
 
     return createSuccessResponse(result, operation);

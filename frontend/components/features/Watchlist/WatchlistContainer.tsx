@@ -2,72 +2,72 @@
 
 import { useRef } from "react";
 import Splitter, { Item } from "devextreme-react/splitter";
-import { MasterPanel, DetailPanel } from "@/components/shared/DataPanel";
 import { DataGridTypes } from "devextreme-react/data-grid";
+import { MasterPanel, DetailPanel } from "@/components/shared/DataPanel";
 import { MasterGrid } from "@/components/shared/DataGrid";
-import TodoDetailView from "./TodoDetailView";
-import TodoDetailForm from "./TodoDetailForm";
-import { selectTodoList, selectTodo, createTodo, updateTodo, deleteTodo } from "@/services/todo/todoService";
+import WatchlistDetailView from "./WatchlistDetailView";
+import WatchlistDetailForm from "./WatchlistDetailForm";
+import {
+  selectWatchlistList,
+  selectWatchlist,
+  createWatchlist,
+  updateWatchlist,
+  deleteWatchlist,
+} from "@/services/watchlist/watchlistService";
 import { useCodeStore } from "@/stores/shared/codeStore";
 import { useMasterGridData } from "@/hooks/shared/useMasterGridData";
 import { useExcelExport } from "@/hooks/shared/useExcelExport";
 import { useMasterGridActions } from "@/hooks/shared/useMasterGridActions";
 
-export default function TodoContainer() {
+export default function WatchlistContainer() {
   const gridRef = useRef<any>(null);
   const { getCode } = useCodeStore();
   const codeList = {
-    dept: getCode("9901"), // 부서
-    sexdstn: getCode("9900"), // 성별
-    bdp: getCode("9902"), // 혈액형
+    market: getCode("5000"), // 관심종목 시장
+    sector: getCode("5001"), // 관심종목 섹터
+    currency: getCode("5002"), // 관심종목 통화
+    priority: getCode("5003"), // 관심종목 우선순위
+    useAt: getCode("1000"), // 사용여부
   };
 
   const GRID_COLUMNS: DataGridTypes.Column[] = [
     { dataField: "rn", caption: "#", width: 50, dataType: "number", allowSorting: false, allowFiltering: false },
-    { dataField: "mber_no", caption: "회원번호", width: 100 },
-    { dataField: "nm", caption: "이름", width: 100 },
-    { dataField: "brthdy", caption: "생년월일", width: 120, dataType: "date" },
-    { dataField: "ecny_de", caption: "입사일", width: 120, dataType: "date" },
-    { dataField: "rspofc", caption: "직책", width: 100 },
+    { dataField: "ticker", caption: "티커", width: 100 },
+    { dataField: "issuer_nm", caption: "종목명", minWidth: 150 },
     {
-      dataField: "dept",
-      caption: "부서명",
+      dataField: "market",
+      caption: "시장",
+      width: 100,
+      lookup: { dataSource: codeList.market, displayExpr: "code_nm", valueExpr: "code" },
+    },
+    {
+      dataField: "sector",
+      caption: "섹터",
       width: 120,
-      lookup: {
-        dataSource: codeList.dept,
-        displayExpr: "code_nm",
-        valueExpr: "code",
-      },
-    },
-    { dataField: "zip", caption: "우편번호", width: 100 },
-    { dataField: "adres1", caption: "주소1", minWidth: 150 },
-    { dataField: "adres2", caption: "주소2", width: 100 },
-    { dataField: "anslry", caption: "연봉", width: 120, dataType: "number" },
-    {
-      dataField: "sexdstn",
-      caption: "성별",
-      width: 100,
-      lookup: {
-        dataSource: codeList.sexdstn,
-        displayExpr: "code_nm",
-        valueExpr: "code",
-      },
+      lookup: { dataSource: codeList.sector, displayExpr: "code_nm", valueExpr: "code" },
     },
     {
-      dataField: "bdp",
-      caption: "혈액형",
-      width: 100,
-      lookup: {
-        dataSource: codeList.bdp,
-        displayExpr: "code_nm",
-        valueExpr: "code",
-      },
+      dataField: "currency",
+      caption: "통화",
+      width: 80,
+      lookup: { dataSource: codeList.currency, displayExpr: "code_nm", valueExpr: "code" },
     },
-    { dataField: "xport_acmslt", caption: "수출실적", width: 120, dataType: "number" },
+    { dataField: "target_price", caption: "목표가", width: 120, dataType: "number" },
+    { dataField: "alert_price", caption: "알림가", width: 120, dataType: "number" },
+    {
+      dataField: "priority",
+      caption: "우선순위",
+      width: 90,
+      lookup: { dataSource: codeList.priority, displayExpr: "code_nm", valueExpr: "code" },
+    },
+    {
+      dataField: "use_at",
+      caption: "사용여부",
+      width: 100,
+      lookup: { dataSource: codeList.useAt, displayExpr: "code_nm", valueExpr: "code" },
+    },
     { dataField: "reg_dt", caption: "생성일시", width: 160, dataType: "datetime" },
-    { dataField: "reg_id", caption: "생성자ID", width: 100 },
     { dataField: "mod_dt", caption: "수정일시", width: 160, dataType: "datetime" },
-    { dataField: "mod_id", caption: "수정자ID", width: 100 },
   ];
 
   const {
@@ -79,14 +79,14 @@ export default function TodoContainer() {
     handleRefresh,
     handleCompleteWithRefresh,
   } = useMasterGridData({
-    fetchGrid: selectTodoList,
-    fetchData: selectTodo,
+    fetchGrid: selectWatchlistList,
+    fetchData: selectWatchlist,
   });
 
   const { handleExcelDownload } = useExcelExport({
     gridRef,
     columns: GRID_COLUMNS,
-    fileName: "download",
+    fileName: "watchlists",
   });
 
   const buttons = useMasterGridActions({
@@ -97,10 +97,10 @@ export default function TodoContainer() {
   });
 
   const apiService = {
-    select: selectTodo,
-    create: createTodo,
-    update: updateTodo,
-    delete: deleteTodo,
+    select: selectWatchlist,
+    create: createWatchlist,
+    update: updateWatchlist,
+    delete: deleteWatchlist,
   };
 
   return (
@@ -108,7 +108,7 @@ export default function TodoContainer() {
       <div className="flex-1 min-h-0 border-t">
         <Splitter height="100%" orientation="horizontal" allowKeyboardNavigation={true}>
           <Item size="60%" resizable={true}>
-            <MasterPanel title="회원 목록" buttons={buttons}>
+            <MasterPanel title="관심종목 목록" buttons={buttons}>
               <MasterGrid
                 ref={gridRef}
                 dataSource={dataSource}
@@ -121,14 +121,15 @@ export default function TodoContainer() {
 
           <Item resizable={true}>
             <DetailPanel
-              title="회원 정보"
+              title="관심종목 정보"
               data={selectedData}
               initialMode={selectedData ? "view" : "create"}
               isSelectLoading={isSelectLoading}
-              ViewComponent={TodoDetailView}
-              FormComponent={TodoDetailForm}
+              ViewComponent={WatchlistDetailView}
+              FormComponent={WatchlistDetailForm}
               viewProps={{ codeList }}
               formProps={{ codeList }}
+              defaultFormData={{ use_at: "Y" }}
               onComplete={handleCompleteWithRefresh}
               apiService={apiService}
             />
