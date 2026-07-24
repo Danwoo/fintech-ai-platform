@@ -20,7 +20,7 @@ from agents.sub_agents import create_domain_agents, create_sub_agents, get_domai
 from clients.mcp.mcp_client import get_cached_tools
 from core.logger import logger
 from graphs.plan_execute import COMPLIANCE_DISCLAIMER, build_plan_execute_graph
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from langfuse import Langfuse
 from langfuse.langchain import CallbackHandler
 from services.agent.guardrail import check_guardrail
@@ -479,6 +479,15 @@ class AgentService:
                     # (message_chunk, metadata) — 답변작성/답변통합 노드 토큰만 답변으로 흘린다.
                     message_chunk, metadata = chunk
                     if (metadata or {}).get("langgraph_node") not in ("답변작성", "답변통합"):
+                        continue
+                    # #72 최종답변 이중 전송 차단. messages 모드는 (a) LLM 토큰(AIMessageChunk)과
+                    # (b) 노드가 state 에 쓴 완성 AIMessage 를 둘 다 emit 한다. 답변 노드가 disclaimer 를
+                    # 붙여 새 id 의 AIMessage 를 반환 → LangGraph 의 id 기반 dedupe 실패 → 토큰 스트림에
+                    # 뒤이어 완성본이 통째로 한 번 더 나간다. 정본은 토큰 스트림이므로, 이미 토큰을 흘린
+                    # (answer_text_full 채워진) 뒤 도착하는 완성 AIMessage 는 버린다(누락된 disclaimer 는
+                    # 아래 결정론적 백스톱이 보강). 단 토큰이 전혀 없던 경로(reduce disabled 등 LLM 미호출)는
+                    # 이 완성본이 유일 전달이므로 통과시킨다.
+                    if not isinstance(message_chunk, AIMessageChunk) and answer_text_full:
                         continue
                     delta = getattr(message_chunk, "content", "") or ""
                     if not isinstance(delta, str) or not delta:
