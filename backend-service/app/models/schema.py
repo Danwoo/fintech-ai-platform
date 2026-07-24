@@ -70,6 +70,31 @@ class Watchlist(Base):
     mod_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
 
+# 4-1. ResearchDocument (리서치 문서 업로드→인덱싱 잡 스토어 — file-service 저장 + doc-search 인제스트 오케스트레이션 상태)
+class ResearchDocument(Base):
+    __tablename__ = "TN_ResearchDocument"
+    __table_args__ = (
+        Index("idx_research_document_company", "company_id"),
+        Index("idx_research_document_atch_file", "atch_file_id"),
+    )
+
+    research_doc_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    company_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    user_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    atch_file_id: Mapped[str] = mapped_column(String(20), nullable=False)
+    file_sn: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    doc_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # uploaded|parsing|indexed|empty|failed
+    status: Mapped[str] = mapped_column(String(20), default="uploaded", server_default="uploaded")
+    chunk_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error_msg: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+
+    reg_dt: Mapped[datetime.datetime | None] = mapped_column(DateTime, default=func.now())
+    reg_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    mod_dt: Mapped[datetime.datetime | None] = mapped_column(DateTime, onupdate=func.now(), nullable=True)
+    mod_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+
 # 5. Portfolio → Holding (2-level master-detail 예시 — 포트폴리오 마스터 / 보유종목 디테일)
 class Portfolio(Base):
     __tablename__ = "TN_Portfolio"

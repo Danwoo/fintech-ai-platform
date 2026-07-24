@@ -10,6 +10,7 @@ from managers.message_queue.message_consumer_manager import message_consumer_man
 from managers.nav.nav_producer_manager import nav_producer_manager
 from routers.nav.nav_router import router as nav_router
 from routers.portfolio.portfolio_router import router as portfolio_router
+from routers.research_document.research_document_router import router as research_document_router
 from routers.watchlist.watchlist_router import router as watchlist_router
 
 
@@ -45,6 +46,7 @@ app.container = Container()
 app.include_router(portfolio_router)
 app.include_router(watchlist_router)
 app.include_router(nav_router)
+app.include_router(research_document_router)
 
 if __name__ == "__main__":
     try:

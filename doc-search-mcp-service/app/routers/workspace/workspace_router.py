@@ -2,8 +2,9 @@
 
 - `/topic-workspace` (operation_id 有): MCP tool. 챗이 근거로 쓴다. 출력은 기존 TopicSearchOut 재사용 →
   근거 추출(_extract_doc)·게이팅이 무변경. company_id 는 on-behalf JWT 에서 읽어 테넌트 스코프를 강제한다.
-- `/ingest` (operation_id 無): MCP tool 로 노출하지 않는다(main.py route_maps 가 EXCLUDE). 프롬프트 인젝션으로
-  LLM 이 근거 코퍼스를 오염시키는 것을 막기 위해 쓰기 능력은 REST 내부(서비스 토큰) 전용으로 둔다(design-160 AD-1).
+- `/ingest`(POST)·`/ingest/{atch_file_id}`(DELETE) (operation_id 無): MCP tool 로 노출하지 않는다(main.py
+  route_maps 가 EXCLUDE). 프롬프트 인젝션으로 LLM 이 근거 코퍼스를 쓰기(색인)·지우기(회수)로 오염·훼손하는
+  것을 막기 위해 쓰기 경로는 REST 내부(서비스 토큰) 전용으로 둔다(design-160 AD-1).
 """
 
 from core.auth_context import get_company_id
@@ -11,9 +12,9 @@ from core.container import Container
 from core.security import verify_access_token
 from core.service_guard import require_service_token
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from schemas.vector_search.vector_search_schema import TopicSearchIn, TopicSearchOut
-from schemas.workspace.workspace_schema import IngestOut
+from schemas.workspace.workspace_schema import IngestOut, WorkspaceDeleteOut
 from services.workspace.workspace_service import WorkspaceService
 from utils.common.few_shot import few_shot
 
@@ -61,3 +62,19 @@ async def ingest_document(
         file_sn=file_sn,
         doc_title=doc_title,
     )
+
+
+@router.delete("/ingest/{atch_file_id}", dependencies=[Depends(require_service_token)])
+@inject
+async def delete_ingested_document(
+    atch_file_id: str,
+    company_id: int = Query(description="테넌트 회사 ID (서비스 호출자가 명시 — 서비스 토큰엔 company_id 가 없음)"),
+    workspace_service: WorkspaceService = Depends(Provide[Container.workspace_service]),
+) -> WorkspaceDeleteOut:
+    """내부 전용 — 파일(첨부 그룹) 단위로 색인된 청크를 회수. file-service 파일 삭제와 짝이 되는 연쇄다.
+
+    require_service_token 게이트로 서비스 토큰(typ=service) 전용 — 일반 사용자·에이전트는 403. company_id 는
+    필수 쿼리 파라미터로 fail-closed(누락 시 422)이며, repository 도 company_id 없으면 쿼리를 거부한다(2중).
+    MCP tool 아님(operation_id 없음 + main.py route_maps EXCLUDE). backend 오케스트레이터만 호출한다.
+    """
+    return await workspace_service.delete_by_file(atch_file_id, company_id)

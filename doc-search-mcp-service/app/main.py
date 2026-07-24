@@ -57,8 +57,9 @@ INSTRUCTIONS = """\
 - ⓘ 본 검색 결과는 정보 제공 목적이며 투자 조언이 아니다."""
 
 # from_fastapi: 라우트→MCP tool (operation_id=이름·docstring=설명·response_model=출력·instructions=자기소개). route_maps 로 전부 TOOL 고정 — GET 도 tool 이어야 call_tool 동작.
-# 단, 내부 인제스트(/doc-search/ingest)는 TOOL 매핑 앞에서 EXCLUDE — 쓰기 능력을 LLM tool 표면에 두면
-# 프롬프트 인젝션으로 근거 코퍼스가 오염될 수 있어 REST 내부(서비스 토큰) 전용으로 격리한다(design-160 AD-1).
+# 단, 내부 쓰기 경로(인제스트 POST /doc-search/ingest, 청크 회수 DELETE /doc-search/ingest/{atch_file_id})는
+# TOOL 매핑 앞에서 EXCLUDE — 쓰기·삭제 능력을 LLM tool 표면에 두면 프롬프트 인젝션으로 근거 코퍼스가
+# 오염·훼손될 수 있어 REST 내부(서비스 토큰) 전용으로 격리한다(design-160 AD-1).
 # route_maps 는 위→아래 첫 매치가 이긴다.
 # 인증 — MCP: JWTVerifier / REST(/doc-search/*): router.dependencies.
 mcp = FastMCP.from_fastapi(
@@ -66,7 +67,7 @@ mcp = FastMCP.from_fastapi(
     name="DOC_SEARCH MCP",
     instructions=INSTRUCTIONS,
     route_maps=[
-        RouteMap(pattern=r"^/doc-search/ingest$", mcp_type=MCPType.EXCLUDE),
+        RouteMap(pattern=r"^/doc-search/ingest(?:/.*)?$", mcp_type=MCPType.EXCLUDE),
         RouteMap(mcp_type=MCPType.TOOL),
     ],
     mcp_component_fn=attach_tool_meta,
