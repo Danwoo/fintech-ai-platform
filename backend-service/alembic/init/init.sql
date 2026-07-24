@@ -44,33 +44,33 @@ VALUES
 ('001', '공지사항#40', '공지사항#40...', 0, 'Y', CURRENT_TIMESTAMP, 'admin', CURRENT_TIMESTAMP, 'admin');
 
 -- 9. 관심종목 (Watchlist — 공개 상장 종목 샘플; 모의 데이터)
-INSERT INTO TN_Watchlist (ticker, issuer_nm, market, sector, currency, target_price, alert_price, priority, use_at, memo, reg_dt, reg_id, mod_dt, mod_id)
+INSERT INTO TN_Watchlist (company_id, ticker, issuer_nm, market, sector, currency, target_price, alert_price, priority, use_at, memo, reg_dt, reg_id, mod_dt, mod_id)
 VALUES
-('005930', '삼성전자',        'KOSPI',  'IT/반도체',   'KRW',  90000.00,   70000.00,  '1', 'Y', '반도체 업황 반등 모니터링',     CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
-('000660', 'SK하이닉스',      'KOSPI',  'IT/반도체',   'KRW', 200000.00,  150000.00,  '1', 'Y', 'HBM 수요 추적',                CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
-('035420', 'NAVER',           'KOSPI',  '인터넷',      'KRW', 230000.00,  180000.00,  '2', 'Y', '광고/커머스 매출 점검',         CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
-('005380', '현대차',          'KOSPI',  '자동차',      'KRW', 280000.00,  220000.00,  '2', 'Y', '전기차 믹스/배당 확인',         CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
-('051910', 'LG화학',          'KOSPI',  '화학/2차전지','KRW', 450000.00,  350000.00,  '3', 'Y', '배터리 사업부 마진 추적',       CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
-('AAPL',   'Apple Inc.',      'NASDAQ', 'Technology',  'USD',    240.00,     180.00,  '1', 'Y', '서비스 매출 비중 확대 점검',     CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
-('MSFT',   'Microsoft Corp.', 'NASDAQ', 'Technology',  'USD',    480.00,     380.00,  '1', 'Y', 'Azure 성장률 모니터링',         CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
-('NVDA',   'NVIDIA Corp.',    'NASDAQ', 'Semiconductors','USD',  160.00,     110.00,  '1', 'Y', 'AI 가속기 가이던스 추적',       CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR');
+(1, '005930', '삼성전자',        'KOSPI',  'IT/반도체',   'KRW',  90000.00,   70000.00,  '1', 'Y', '반도체 업황 반등 모니터링',     CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+(1, '000660', 'SK하이닉스',      'KOSPI',  'IT/반도체',   'KRW', 200000.00,  150000.00,  '1', 'Y', 'HBM 수요 추적',                CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+(1, '035420', 'NAVER',           'KOSPI',  '인터넷',      'KRW', 230000.00,  180000.00,  '2', 'Y', '광고/커머스 매출 점검',         CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+(1, '005380', '현대차',          'KOSPI',  '자동차',      'KRW', 280000.00,  220000.00,  '2', 'Y', '전기차 믹스/배당 확인',         CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+(1, '051910', 'LG화학',          'KOSPI',  '화학/2차전지','KRW', 450000.00,  350000.00,  '3', 'Y', '배터리 사업부 마진 추적',       CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+(1, 'AAPL',   'Apple Inc.',      'NASDAQ', 'Technology',  'USD',    240.00,     180.00,  '1', 'Y', '서비스 매출 비중 확대 점검',     CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+(1, 'MSFT',   'Microsoft Corp.', 'NASDAQ', 'Technology',  'USD',    480.00,     380.00,  '1', 'Y', 'Azure 성장률 모니터링',         CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+(1, 'NVDA',   'NVIDIA Corp.',    'NASDAQ', 'Semiconductors','USD',  160.00,     110.00,  '1', 'Y', 'AI 가속기 가이던스 추적',       CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR');
 
 -- 10. 포트폴리오 (master)
-INSERT INTO TN_Portfolio (portfolio_id, portfolio_nm, sort_ordr, use_at, description, reg_dt, reg_id, mod_dt, mod_id)
+INSERT INTO TN_Portfolio (company_id, portfolio_id, portfolio_nm, sort_ordr, use_at, description, reg_dt, reg_id, mod_dt, mod_id)
 VALUES
-('core',   '코어 성장 포트폴리오', 1, 'Y', '국내외 대형 성장주 코어 비중', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
-('income', '배당 인컴 포트폴리오', 2, 'Y', '배당/인컴 중심 방어 포트폴리오', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
-('tech',   '글로벌 테크 포트폴리오', 3, 'Y', '미국 빅테크 집중 포트폴리오', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR');
+(1, 'core',   '코어 성장 포트폴리오', 1, 'Y', '국내외 대형 성장주 코어 비중', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+(1, 'income', '배당 인컴 포트폴리오', 2, 'Y', '배당/인컴 중심 방어 포트폴리오', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+(1, 'tech',   '글로벌 테크 포트폴리오', 3, 'Y', '미국 빅테크 집중 포트폴리오', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR');
 
 -- 11. 보유종목 (detail)
-INSERT INTO TN_Holding (portfolio_id, ticker, holding_nm, quantity, avg_price, use_at, description, reg_dt, reg_id, mod_dt, mod_id)
+INSERT INTO TN_Holding (company_id, portfolio_id, ticker, holding_nm, quantity, avg_price, use_at, description, reg_dt, reg_id, mod_dt, mod_id)
 VALUES
-('core',   '005930', '삼성전자',   120, 72000.00,  'Y', '코어 반도체 비중',       CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
-('core',   '035420', 'NAVER',       30, 195000.00, 'Y', '인터넷 성장 노출',       CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
-('income', '005380', '현대차',      40, 235000.00, 'Y', '배당 매력 보유',         CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
-('income', '051910', 'LG화학',      10, 410000.00, 'Y', '2차전지 인컴 일부',      CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
-('tech',   'AAPL',   'Apple Inc.',  50, 195.00,    'Y', '미국 빅테크 코어',       CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
-('tech',   'NVDA',   'NVIDIA Corp.',80, 118.00,    'Y', 'AI 반도체 집중',         CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR');
+(1, 'core',   '005930', '삼성전자',   120, 72000.00,  'Y', '코어 반도체 비중',       CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+(1, 'core',   '035420', 'NAVER',       30, 195000.00, 'Y', '인터넷 성장 노출',       CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+(1, 'income', '005380', '현대차',      40, 235000.00, 'Y', '배당 매력 보유',         CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+(1, 'income', '051910', 'LG화학',      10, 410000.00, 'Y', '2차전지 인컴 일부',      CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+(1, 'tech',   'AAPL',   'Apple Inc.',  50, 195.00,    'Y', '미국 빅테크 코어',       CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+(1, 'tech',   'NVDA',   'NVIDIA Corp.',80, 118.00,    'Y', 'AI 반도체 집중',         CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR');
 
 -- 13. 메시지 큐 (Kafka 대체 DB 큐 — 시세/체결 틱 인제스트 done/failed 이력 샘플; pending 은 consumer 가 소비)
 INSERT INTO TN_MessageQueue (topic, payload, status, retry_count, error, reg_dt, reg_id, mod_dt, mod_id)
