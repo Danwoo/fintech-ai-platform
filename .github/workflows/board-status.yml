@@ -46,6 +46,7 @@ env:
 
 jobs:
   board-status:
+    name: "chore: board-sync"
     runs-on: ubuntu-latest
     steps:
       - name: 이벤트별 보드 Status 동기화
