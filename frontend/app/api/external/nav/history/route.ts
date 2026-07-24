@@ -1,13 +1,13 @@
-// app/api/external/metric/history/route.ts
+// app/api/external/nav/history/route.ts
 import { env } from "@/env";
 import { withAuth } from "@/lib/auth/withAuth";
 import { NextRequest } from "next/server";
 import { proxyApiRequest } from "@/utils/common/api/server";
 import { createSuccessResponse, createErrorResponse } from "@/utils/common/api/responses";
 
-const BACKEND_URL = env.BACKEND_SERVICE_URL + "/metric/history";
+const BACKEND_URL = env.BACKEND_SERVICE_URL + "/nav/history";
 
-// [GET] /api/external/metric/history - 메트릭 시계열 이력 조회 핸들러
+// [GET] /api/external/nav/history - NAV 시계열 이력 조회 핸들러
 const getHandler = async (req: NextRequest, session: any, params?: any) => {
   const operation = "GET";
 
