@@ -30,8 +30,13 @@ class Settings(BaseSettings):
     SFTP_PASSWORD: str
     SFTP_BASE_PATH: str = "/upload"
 
-    # 업로드 파일당 최대 크기 (MB) — 초과 시 413
+    # 업로드 파일당 최대 크기 (MB) — 초과 시 413. 정본 판정은 파싱 후 실측 검사(FileService.upload_files).
     MAX_UPLOAD_SIZE_MB: int = 20
+
+    # 요청 바디(멀티파트 전체) 남용 차단선 (MB). 파일당 한도가 아니라 "이 이상은 정상 사용이 아니다"의 상한이다.
+    # 20MB 파일 25개(=최대 배치의 5배)까지 통과하므로 정상 다중파일 배치는 막지 않고, 리버스 프록시가 허용하는
+    # 2g 급 요청만 파싱 전에 잘라 대역폭·temp 디스크 소모를 막는다 (#109).
+    MAX_REQUEST_BODY_SIZE_MB: int = 512
 
     JWT_SECRET: str
 
@@ -41,6 +46,26 @@ class Settings(BaseSettings):
         env_file=f".env.{os.getenv('APP_ENV', 'production')}",
         env_file_encoding="utf-8",
     )
+
+    @property
+    def max_upload_bytes(self) -> int:
+        """업로드 파일당 최대 크기(바이트). MAX_UPLOAD_SIZE_MB 를 단일 소스로 파생 — MB→bytes 변환을 한 곳에만 둔다."""
+        return self.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+
+    @property
+    def max_request_body_bytes(self) -> int:
+        """요청 바디 남용 차단선(바이트). 정밀 한도가 아니다 — 파일당 판정은 max_upload_bytes 실측 검사가 한다."""
+        return self.MAX_REQUEST_BODY_SIZE_MB * 1024 * 1024
+
+    @model_validator(mode="after")
+    def _forbid_body_cap_below_file_limit(self) -> "Settings":
+        # 바디 차단선이 파일당 한도보다 낮으면 정상 단일 파일도 조기 거절된다 — 설정 실수를 기동 시 잡는다.
+        if self.MAX_REQUEST_BODY_SIZE_MB < self.MAX_UPLOAD_SIZE_MB:
+            raise ValueError(
+                f"MAX_REQUEST_BODY_SIZE_MB({self.MAX_REQUEST_BODY_SIZE_MB})는 "
+                f"MAX_UPLOAD_SIZE_MB({self.MAX_UPLOAD_SIZE_MB}) 이상이어야 합니다."
+            )
+        return self
 
     @model_validator(mode="after")
     def _forbid_dev_bypass_outside_dev(self) -> "Settings":
