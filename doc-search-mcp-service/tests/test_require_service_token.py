@@ -24,7 +24,7 @@ if str(_APP_DIR) not in sys.path:
 
 from core.auth_context import set_auth_context  # noqa: E402
 from core.exceptions import ForbiddenError  # noqa: E402
-from core.security import require_service_token  # noqa: E402
+from core.service_guard import require_service_token  # noqa: E402
 
 
 def test_service_token_passes_gate() -> str:

@@ -8,7 +8,8 @@
 
 from core.auth_context import get_company_id
 from core.container import Container
-from core.security import require_service_token, verify_access_token
+from core.security import verify_access_token
+from core.service_guard import require_service_token
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from schemas.vector_search.vector_search_schema import TopicSearchIn, TopicSearchOut
