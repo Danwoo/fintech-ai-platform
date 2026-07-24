@@ -1,4 +1,4 @@
-// app/api/external/nav/history/route.ts
+// app/api/external/backend/nav/history/route.ts
 import { env } from "@/env";
 import { withAuth } from "@/lib/auth/withAuth";
 import { NextRequest } from "next/server";
@@ -7,7 +7,7 @@ import { createSuccessResponse, createErrorResponse } from "@/utils/common/api/r
 
 const BACKEND_URL = env.BACKEND_SERVICE_URL + "/nav/history";
 
-// [GET] /api/external/nav/history - NAV 시계열 이력 조회 핸들러
+// [GET] /api/external/backend/nav/history - NAV 시계열 이력 조회 핸들러
 const getHandler = async (req: NextRequest, session: any, params?: any) => {
   const operation = "GET";
 

@@ -1,13 +1,13 @@
-// app/api/external/category/[category_id]/product/route.ts
+// app/api/external/backend/portfolio/[portfolio_id]/holding/route.ts
 import { env } from "@/env";
 import { withAuth } from "@/lib/auth/withAuth";
 import { NextRequest } from "next/server";
 import { proxyApiRequest } from "@/utils/common/api/server";
 import { createSuccessResponse, createErrorResponse } from "@/utils/common/api/responses";
 
-const BACKEND_URL = env.BACKEND_SERVICE_URL + "/category";
+const BACKEND_URL = env.BACKEND_SERVICE_URL + "/portfolio";
 
-// [GET] 상품 목록 조회
+// [GET] 보유종목 목록 조회
 const getHandler = async (req: NextRequest, session: any, params?: any) => {
   const operation = "GET";
 
@@ -15,7 +15,7 @@ const getHandler = async (req: NextRequest, session: any, params?: any) => {
     const { searchParams } = new URL(req.url);
     const queryParams = Object.fromEntries(searchParams.entries());
 
-    const result = await proxyApiRequest(`${BACKEND_URL}/${params.category_id}/product`, {
+    const result = await proxyApiRequest(`${BACKEND_URL}/${params.portfolio_id}/holding`, {
       method: operation,
       params: queryParams,
       headers: { Authorization: `Bearer ${session.accessToken}` },
@@ -27,13 +27,13 @@ const getHandler = async (req: NextRequest, session: any, params?: any) => {
   }
 };
 
-// [POST] 상품 등록
+// [POST] 보유종목 등록
 const postHandler = async (req: NextRequest, session: any, params?: any) => {
   const operation = "POST";
 
   try {
     const body = await req.json();
-    const result = await proxyApiRequest(`${BACKEND_URL}/${params.category_id}/product`, {
+    const result = await proxyApiRequest(`${BACKEND_URL}/${params.portfolio_id}/holding`, {
       method: operation,
       data: body,
       headers: { Authorization: `Bearer ${session.accessToken}` },

@@ -1,13 +1,13 @@
-// app/api/external/category/route.ts
+// app/api/external/backend/portfolio/route.ts
 import { env } from "@/env";
 import { withAuth } from "@/lib/auth/withAuth";
 import { NextRequest } from "next/server";
 import { proxyApiRequest } from "@/utils/common/api/server";
 import { createSuccessResponse, createErrorResponse } from "@/utils/common/api/responses";
 
-const BACKEND_URL = env.BACKEND_SERVICE_URL + "/category";
+const BACKEND_URL = env.BACKEND_SERVICE_URL + "/portfolio";
 
-// [GET] 카테고리 목록 조회
+// [GET] 포트폴리오 목록 조회
 const getHandler = async (req: NextRequest, session: any) => {
   const operation = "GET";
 
@@ -27,7 +27,7 @@ const getHandler = async (req: NextRequest, session: any) => {
   }
 };
 
-// [POST] 카테고리 등록
+// [POST] 포트폴리오 등록
 const postHandler = async (req: NextRequest, session: any) => {
   const operation = "POST";
 

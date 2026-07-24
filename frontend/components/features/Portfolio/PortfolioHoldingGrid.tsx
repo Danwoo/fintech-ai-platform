@@ -1,4 +1,4 @@
-// components/features/Category/CategoryProductGrid.tsx
+// components/features/Portfolio/PortfolioHoldingGrid.tsx
 "use client";
 
 import React from "react";
@@ -6,19 +6,19 @@ import { DetailGridPanel } from "@/components/shared/DataPanel";
 import { DataGridTypes } from "devextreme-react/data-grid";
 import { TextBox, SelectBox, NumberBox, TextArea } from "@/components/shared/ui";
 import { TableRow, TableCell, TableGroup } from "@/components/shared/Layout";
-import { selectProductList, createProduct, updateProduct, deleteProduct } from "@/services/category/categoryService";
-import { Product, ProductOut } from "@/schemas/category/category";
+import { selectHoldingList, createHolding, updateHolding, deleteHolding } from "@/services/portfolio/portfolioService";
+import { Holding, HoldingOut } from "@/schemas/portfolio/portfolio";
 
 interface Props {
-  categoryId: string;
-  onSelectionChanged?: (product: ProductOut | null) => void;
+  portfolioId: string;
+  onSelectionChanged?: (holding: HoldingOut | null) => void;
   height?: string;
   editable?: boolean;
   codeList?: any;
 }
 
-const CategoryProductGrid: React.FC<Props> = ({
-  categoryId,
+const PortfolioHoldingGrid: React.FC<Props> = ({
+  portfolioId,
   onSelectionChanged,
   height = "100%",
   editable = false,
@@ -26,9 +26,10 @@ const CategoryProductGrid: React.FC<Props> = ({
 }) => {
   const GRID_COLUMNS: DataGridTypes.Column[] = [
     { dataField: "rn", caption: "#", width: 50, dataType: "number", allowSorting: false, allowFiltering: false },
-    { dataField: "product_id", caption: "상품ID", width: 100 },
-    { dataField: "product_nm", caption: "상품명", width: 180 },
-    { dataField: "price", caption: "가격", width: 110, dataType: "number" },
+    { dataField: "ticker", caption: "종목코드", width: 100 },
+    { dataField: "holding_nm", caption: "종목명", width: 180 },
+    { dataField: "quantity", caption: "수량", width: 100, dataType: "number" },
+    { dataField: "avg_price", caption: "평균단가", width: 110, dataType: "number", format: "#,##0.##" },
     {
       dataField: "use_at",
       caption: "사용여부",
@@ -44,23 +45,23 @@ const CategoryProductGrid: React.FC<Props> = ({
 
   return (
     <DetailGridPanel
-      fetchGrid={async (params: any) => await selectProductList({ ...params, category_id: categoryId })}
+      fetchGrid={async (params: any) => await selectHoldingList({ ...params, portfolio_id: portfolioId })}
       columns={GRID_COLUMNS}
       height={height}
       apiService={{
-        create: async (data: Product) => {
-          await createProduct({ ...data, category_id: categoryId });
+        create: async (data: Holding) => {
+          await createHolding({ ...data, portfolio_id: portfolioId });
         },
-        update: async (data: Product) => {
-          await updateProduct(data);
+        update: async (data: Holding) => {
+          await updateHolding({ ...data, portfolio_id: portfolioId });
         },
-        delete: async (data: Product) => {
-          await deleteProduct(data);
+        delete: async (data: Holding) => {
+          await deleteHolding({ ...data, portfolio_id: portfolioId });
         },
       }}
       FormComponent={FormComponent}
       formProps={{ codeList }}
-      defaultFormData={{ price: 0, use_at: "Y" }}
+      defaultFormData={{ quantity: 0, avg_price: 0, use_at: "Y" }}
       editable={editable}
       onSelectionChanged={onSelectionChanged}
     />
@@ -68,28 +69,28 @@ const CategoryProductGrid: React.FC<Props> = ({
 };
 
 const FormComponent: React.FC<{
-  formData: Partial<Product>;
+  formData: Partial<Holding>;
   modalMode: "create" | "edit";
   onFieldChange: (field: string, value: any) => void;
   getFieldProps: (field: string) => any;
   codeList?: any;
 }> = ({ formData, modalMode, onFieldChange, getFieldProps, codeList }) => {
   return (
-    <TableGroup title="상품 정보">
+    <TableGroup title="보유종목 정보">
       <TableRow>
-        <TableCell label="상품ID" required>
+        <TableCell label="종목코드" required>
           <TextBox
-            fieldName="product_id"
-            value={formData.product_id}
+            fieldName="ticker"
+            value={formData.ticker}
             readOnly={modalMode === "edit"}
             onValueChanged={onFieldChange}
             getFieldProps={getFieldProps}
           />
         </TableCell>
-        <TableCell label="상품명" required>
+        <TableCell label="종목명" required>
           <TextBox
-            fieldName="product_nm"
-            value={formData.product_nm}
+            fieldName="holding_nm"
+            value={formData.holding_nm}
             onValueChanged={onFieldChange}
             getFieldProps={getFieldProps}
           />
@@ -97,14 +98,25 @@ const FormComponent: React.FC<{
       </TableRow>
 
       <TableRow>
-        <TableCell label="가격" required>
+        <TableCell label="수량" required>
           <NumberBox
-            fieldName="price"
-            value={formData.price}
+            fieldName="quantity"
+            value={formData.quantity}
             onValueChanged={onFieldChange}
             getFieldProps={getFieldProps}
           />
         </TableCell>
+        <TableCell label="평균단가" required>
+          <NumberBox
+            fieldName="avg_price"
+            value={formData.avg_price}
+            onValueChanged={onFieldChange}
+            getFieldProps={getFieldProps}
+          />
+        </TableCell>
+      </TableRow>
+
+      <TableRow>
         <TableCell label="사용여부" required>
           <SelectBox
             fieldName="use_at"
@@ -114,6 +126,7 @@ const FormComponent: React.FC<{
             getFieldProps={getFieldProps}
           />
         </TableCell>
+        <TableCell></TableCell>
       </TableRow>
 
       <TableRow>
@@ -132,4 +145,4 @@ const FormComponent: React.FC<{
   );
 };
 
-export default React.memo(CategoryProductGrid);
+export default React.memo(PortfolioHoldingGrid);

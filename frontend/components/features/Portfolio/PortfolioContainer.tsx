@@ -5,21 +5,21 @@ import Splitter, { Item } from "devextreme-react/splitter";
 import { DataGridTypes } from "devextreme-react/data-grid";
 import { MasterPanel, DetailPanel } from "@/components/shared/DataPanel";
 import { MasterGrid } from "@/components/shared/DataGrid";
-import CategoryDetailView from "./CategoryDetailView";
-import CategoryDetailForm from "./CategoryDetailForm";
+import PortfolioDetailView from "./PortfolioDetailView";
+import PortfolioDetailForm from "./PortfolioDetailForm";
 import {
-  selectCategoryList,
-  selectCategory,
-  createCategory,
-  updateCategory,
-  deleteCategory,
-} from "@/services/category/categoryService";
+  selectPortfolioList,
+  selectPortfolio,
+  createPortfolio,
+  updatePortfolio,
+  deletePortfolio,
+} from "@/services/portfolio/portfolioService";
 import { useCodeStore } from "@/stores/shared/codeStore";
 import { useMasterGridData } from "@/hooks/shared/useMasterGridData";
 import { useExcelExport } from "@/hooks/shared/useExcelExport";
 import { useMasterGridActions } from "@/hooks/shared/useMasterGridActions";
 
-export default function CategoryContainer() {
+export default function PortfolioContainer() {
   const gridRef = useRef<any>(null);
   const { getCode } = useCodeStore();
   const codeList = {
@@ -28,8 +28,8 @@ export default function CategoryContainer() {
 
   const GRID_COLUMNS: DataGridTypes.Column[] = [
     { dataField: "rn", caption: "#", width: 50, dataType: "number", allowSorting: false, allowFiltering: false },
-    { dataField: "category_id", caption: "카테고리ID", width: 120 },
-    { dataField: "category_nm", caption: "카테고리명", width: 200 },
+    { dataField: "portfolio_id", caption: "포트폴리오ID", width: 120 },
+    { dataField: "portfolio_nm", caption: "포트폴리오명", width: 200 },
     { dataField: "sort_ordr", caption: "정렬순서", width: 90, dataType: "number" },
     {
       dataField: "use_at",
@@ -54,14 +54,14 @@ export default function CategoryContainer() {
     handleRefresh,
     handleCompleteWithRefresh,
   } = useMasterGridData({
-    fetchGrid: selectCategoryList,
-    fetchData: selectCategory,
+    fetchGrid: selectPortfolioList,
+    fetchData: selectPortfolio,
   });
 
   const { handleExcelDownload } = useExcelExport({
     gridRef,
     columns: GRID_COLUMNS,
-    fileName: "categories",
+    fileName: "portfolios",
   });
 
   const buttons = useMasterGridActions({
@@ -72,10 +72,10 @@ export default function CategoryContainer() {
   });
 
   const apiService = {
-    select: selectCategory,
-    create: createCategory,
-    update: updateCategory,
-    delete: deleteCategory,
+    select: selectPortfolio,
+    create: createPortfolio,
+    update: updatePortfolio,
+    delete: deletePortfolio,
   };
 
   return (
@@ -83,7 +83,7 @@ export default function CategoryContainer() {
       <div className="flex-1 min-h-0 border-t">
         <Splitter height="100%" orientation="horizontal" allowKeyboardNavigation={true}>
           <Item size="50%" resizable={true}>
-            <MasterPanel title="카테고리 목록" buttons={buttons}>
+            <MasterPanel title="포트폴리오 목록" buttons={buttons}>
               <MasterGrid
                 ref={gridRef}
                 dataSource={dataSource}
@@ -96,12 +96,12 @@ export default function CategoryContainer() {
 
           <Item resizable={true}>
             <DetailPanel
-              title="카테고리 정보"
+              title="포트폴리오 정보"
               data={selectedData}
               initialMode={selectedData ? "view" : "create"}
               isSelectLoading={isSelectLoading}
-              ViewComponent={CategoryDetailView}
-              FormComponent={CategoryDetailForm}
+              ViewComponent={PortfolioDetailView}
+              FormComponent={PortfolioDetailForm}
               viewProps={{ codeList }}
               formProps={{ codeList }}
               defaultFormData={{ use_at: "Y", sort_ordr: 1 }}

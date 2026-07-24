@@ -1,18 +1,18 @@
-// app/api/external/category/[category_id]/product/[product_id]/route.ts
+// app/api/external/backend/portfolio/[portfolio_id]/route.ts
 import { env } from "@/env";
 import { withAuth } from "@/lib/auth/withAuth";
 import { NextRequest } from "next/server";
 import { proxyApiRequest } from "@/utils/common/api/server";
 import { createSuccessResponse, createErrorResponse } from "@/utils/common/api/responses";
 
-const BACKEND_URL = env.BACKEND_SERVICE_URL + "/category";
+const BACKEND_URL = env.BACKEND_SERVICE_URL + "/portfolio";
 
-// [GET] 상품 단건 조회
+// [GET] 포트폴리오 단건 조회
 const getHandler = async (req: NextRequest, session: any, params?: any) => {
   const operation = "GET";
 
   try {
-    const result = await proxyApiRequest(`${BACKEND_URL}/${params.category_id}/product/${params.product_id}`, {
+    const result = await proxyApiRequest(`${BACKEND_URL}/${params.portfolio_id}`, {
       method: operation,
       headers: { Authorization: `Bearer ${session.accessToken}` },
     });
@@ -23,13 +23,13 @@ const getHandler = async (req: NextRequest, session: any, params?: any) => {
   }
 };
 
-// [PUT] 상품 수정
+// [PUT] 포트폴리오 수정
 const putHandler = async (req: NextRequest, session: any, params?: any) => {
   const operation = "PUT";
 
   try {
     const body = await req.json();
-    const result = await proxyApiRequest(`${BACKEND_URL}/${params.category_id}/product/${params.product_id}`, {
+    const result = await proxyApiRequest(`${BACKEND_URL}/${params.portfolio_id}`, {
       method: operation,
       data: body,
       headers: { Authorization: `Bearer ${session.accessToken}` },
@@ -41,12 +41,12 @@ const putHandler = async (req: NextRequest, session: any, params?: any) => {
   }
 };
 
-// [DELETE] 상품 삭제
+// [DELETE] 포트폴리오 삭제
 const deleteHandler = async (req: NextRequest, session: any, params?: any) => {
   const operation = "DELETE";
 
   try {
-    const result = await proxyApiRequest(`${BACKEND_URL}/${params.category_id}/product/${params.product_id}`, {
+    const result = await proxyApiRequest(`${BACKEND_URL}/${params.portfolio_id}`, {
       method: operation,
       headers: { Authorization: `Bearer ${session.accessToken}` },
     });
