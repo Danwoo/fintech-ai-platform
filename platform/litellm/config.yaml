@@ -10,16 +10,6 @@ model_list:
       supports_vision: true
       supports_function_calling: true
 
-  # VLM 모델 (Qwen3-VL-30B-A3B-Instruct-FP8)
-  - model_name: Qwen3-VL-30B-A3B
-    litellm_params:
-      model: openai/Qwen/Qwen3-VL-30B-A3B-Instruct-FP8
-      api_base: http://sglang-vlm:30000/v1
-      api_key: os.environ/OPENAI_API_KEY
-      timeout: 600
-    model_info:
-      supports_vision: true
-
 # =============================================================================
 # 가드레일
 #   - canary-inject : pre_call  — 시스템 프롬프트 앞에 canary 토큰 주입(누설 탐지의 전제). §1
