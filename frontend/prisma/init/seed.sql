@@ -143,6 +143,12 @@ VALUES
 ('4200', '중요도타입', 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
 ('4300', '채팅가능상태', 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
 
+-- [관심종목] Watchlist 폼 드롭다운 (값은 backend-service/alembic/init/init.sql 의 TN_Watchlist 시드에서 도출)
+('5000', '관심종목 시장', 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5001', '관심종목 섹터', 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5002', '관심종목 통화', 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5003', '관심종목 우선순위', 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+
 -- [템플릿 데모] 성별/부서/혈액형/취미
 ('9900', '성별', 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
 ('9901', '부서', 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
@@ -245,6 +251,29 @@ VALUES
 ('4200', '3', '필수', 4, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
 ('4300', 'active', '활성', 1, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
 ('4300', 'inactive', '비활성', 2, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+
+-- [관심종목] Watchlist 폼 드롭다운 — code 값 = TN_Watchlist 시드의 실제 저장값(그리드/뷰 lookup 이 code 로 매칭)
+--   시장: 시드는 KOSPI·NASDAQ 사용 → KOSDAQ·NYSE 를 보완으로 추가
+('5000', 'KOSPI', 'KOSPI', 1, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5000', 'KOSDAQ', 'KOSDAQ', 2, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5000', 'NASDAQ', 'NASDAQ', 3, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5000', 'NYSE', 'NYSE', 4, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+--   섹터: 시드에 등장한 실제 섹터 6종 (한/영 혼재 — 저장값 그대로 code 로 사용)
+('5001', 'IT/반도체', 'IT/반도체', 1, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5001', '인터넷', '인터넷', 2, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5001', '자동차', '자동차', 3, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5001', '화학/2차전지', '화학/2차전지', 4, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5001', 'Technology', 'Technology(기술)', 5, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5001', 'Semiconductors', 'Semiconductors(반도체)', 6, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+--   통화: 시드는 KRW·USD 사용
+('5002', 'KRW', '원화(KRW)', 1, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5002', 'USD', '미국 달러(USD)', 2, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+--   우선순위: 시드는 '1'/'2'/'3' 사용. 시드에서 '1'이 대형주(삼성전자·SK하이닉스·Apple·MSFT·NVDA),
+--   '2'가 NAVER·현대차, '3'이 LG화학에 붙은 걸 근거로 1=높음/2=중간/3=낮음 으로 가정(추정 라벨).
+--   ※ 기존 4200('중요도타입': 0=참고/1=일반/2=중요/3=필수)은 의미가 어긋나 재사용하지 않고 전용 그룹 신설.
+('5003', '1', '높음', 1, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5003', '2', '중간', 2, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('5003', '3', '낮음', 3, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
 
 -- [템플릿 데모] 성별/부서/혈액형/취미
 ('9900', '001', '남', 1, 'Y', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),

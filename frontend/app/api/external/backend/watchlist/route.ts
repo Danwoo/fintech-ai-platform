@@ -1,14 +1,14 @@
+// app/api/external/backend/watchlist/route.ts
 import { env } from "@/env";
-// app/api/external/todo/route.ts
 import { withAuth } from "@/lib/auth/withAuth";
 import { NextRequest } from "next/server";
 import { proxyApiRequest } from "@/utils/common/api/server";
 import { createSuccessResponse, createErrorResponse } from "@/utils/common/api/responses";
 
-const BACKEND_URL = env.BACKEND_SERVICE_URL + "/todo";
+const BACKEND_URL = env.BACKEND_SERVICE_URL + "/watchlist";
 
-// [GET] /api/todo - 목록 조회 핸들러
-const getHandler = async (req: NextRequest, session: any, params?: any) => {
+// [GET] 관심종목 목록 조회
+const getHandler = async (req: NextRequest, session: any) => {
   const operation = "GET";
 
   try {
@@ -18,9 +18,7 @@ const getHandler = async (req: NextRequest, session: any, params?: any) => {
     const result = await proxyApiRequest(`${BACKEND_URL}`, {
       method: operation,
       params: queryParams,
-      headers: {
-        Authorization: `Bearer ${session.accessToken}`,
-      },
+      headers: { Authorization: `Bearer ${session.accessToken}` },
     });
 
     return createSuccessResponse(result, operation);
@@ -29,18 +27,16 @@ const getHandler = async (req: NextRequest, session: any, params?: any) => {
   }
 };
 
-// [POST] /api/todo - 등록 핸들러
-const postHandler = async (req: NextRequest, session: any, params?: any) => {
+// [POST] 관심종목 등록
+const postHandler = async (req: NextRequest, session: any) => {
   const operation = "POST";
 
   try {
     const body = await req.json();
     const result = await proxyApiRequest(`${BACKEND_URL}`, {
       method: operation,
-      data: body, // axios에서는 data로 body 전달
-      headers: {
-        Authorization: `Bearer ${session.accessToken}`,
-      },
+      data: body,
+      headers: { Authorization: `Bearer ${session.accessToken}` },
     });
 
     return createSuccessResponse(result, operation);
