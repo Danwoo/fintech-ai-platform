@@ -6,7 +6,7 @@
 
 ## 0. 토폴로지
 
-용어 — **SGLang**: LLM 추론 서버(OpenAI 호환 + xgrammar 제약 디코딩). **LiteLLM**: 여러 모델을 단일 OpenAI 호환 포트로 모으는 게이트웨이(+ 가드레일 hook). **served-model-name**: SGLang 이 노출하는 모델 이름(LiteLLM 이 보내는 `model` 값과 일치해야 함). **가드레일**: 게이트웨이 입출력 필터([가드레일 문서](../3-기법/llm-가드레일.md)).
+용어 — **SGLang**: LLM 추론 서버(OpenAI 호환 + 제약 디코딩 지원 — grammar 백엔드는 §5). **LiteLLM**: 여러 모델을 단일 OpenAI 호환 포트로 모으는 게이트웨이(+ 가드레일 hook). **served-model-name**: SGLang 이 노출하는 모델 이름(LiteLLM 이 보내는 `model` 값과 일치해야 함). **가드레일**: 게이트웨이 입출력 필터([가드레일 문서](../3-기법/llm-가드레일.md)).
 
 여러 서버·여러 모델을 **단일 접근 포트로 모으는 것이 LiteLLM 의 기본 역할.** SGLang 을 Nginx 로 따로 묶을 필요 없이 LiteLLM 이 각 SGLang 을 `api_base` 로 직접 가리킨다.
 
@@ -14,7 +14,7 @@
 flowchart TD
     CLI["Client<br/>(Bearer: LITELLM_MASTER_KEY)"] --> NGX["Nginx: TLS·외부 경계<br/>(외부 진입만, SGLang 묶는 용도 아님)"]
     NGX --> LT["LiteLLM :4000<br/>pre-hook: canary 주입 + PII 마스킹<br/>post-hook: canary 누설 차단 / 욕설 마스킹"]
-    LT --> LLM["SGLang sglang-llm :30000<br/>(Qwen3.6-27B coder, GPU 0,1, xgrammar)"]
+    LT --> LLM["SGLang sglang-llm :30000<br/>(Qwen3.6-27B coder, GPU 0,1)"]
 ```
 
 > 현재 구성은 SGLang 백엔드가 `sglang-llm` **하나뿐**이다(`Qwen3.6-27B` 는 멀티모달이라 이미지 입력도 이 모델이 받는다). 모델을 늘리면 `model_list` 에 항목을 추가하고 해당 SGLang 을 `api_base` 로 가리키면 된다.
@@ -23,7 +23,7 @@ flowchart TD
 - 우리 서비스(devactivity 등)는 `LLM_BASE_URL=http://<host>:4000/v1` 로 게이트웨이만 본다 — 챗(스트리밍)·주간리포트(비스트리밍) 모두 여길 지나므로 가드레일이 한곳에서 통일된다.
 - **SGLang 을 Nginx upstream 으로 미리 묶지 말 것** — 모델 구분/fallback 이 깨진다. 외부 경계가 필요하면 LiteLLM 앞에만 Nginx 를 두고 LLM 경로는 `proxy_buffering off;` + `proxy_read_timeout 300s;`(SSE 끊김 방지).
 
-> repo 의 게이트웨이 compose: [`platform/litellm/compose.yaml`](../../platform/litellm/compose.yaml) — **litellm 서비스만**(참고용). sglang 은 GPU 서버에서 따로 돌리므로 이 파일엔 없다. 자체 호스팅하려면 아래 §2 의 sglang 서비스를 같은 compose 에 추가한다.
+> repo 의 compose: [`platform/litellm/compose.yaml`](../../platform/litellm/compose.yaml) — **`model-downloader`·`sglang-llm`·`litellm` 세 서비스**가 한 파일에 있다(단일 호스트 자체 호스팅 스택). SGLang 을 별도 물리 서버로 분리하는 변형은 §6.
 
 ---
 
@@ -31,7 +31,7 @@ flowchart TD
 
 ```text
 platform/litellm/
-├─ compose.yaml            (litellm 게이트웨이 — 참고용; sglang 은 별도 호스팅)
+├─ compose.yaml            (model-downloader + sglang-llm + litellm — 단일 호스트 스택)
 ├─ config.yaml             (model_list + guardrails)
 ├─ custom_guardrail.py     (canary/PII/욕설 가드)
 └─ Dockerfile              (litellm 버전 핀 + korcen 설치)
@@ -42,6 +42,7 @@ platform/litellm/
 LLM_MODEL_NAME=Qwen/Qwen3.6-27B-FP8
 HF_TOKEN=<HUGGINGFACE_TOKEN>          # 게이트형 모델/빠른 다운로드용
 LITELLM_MASTER_KEY=<LITELLM_MASTER_KEY>   # 클라이언트 Bearer. 길고 랜덤하게
+OPENAI_API_KEY=<SGLANG_API_KEY>       # LiteLLM→SGLang 호출 키. config.yaml api_key 가 os.environ 로 읽고, compose 가 :? 로 필수 강제(미설정 시 기동 실패)
 PROMPT_CANARY=                        # (선택) 누설 탐지 마커. 미설정 시 기동마다 랜덤 생성. 고정하려면 추측불가 값으로
 GUARDRAIL_REFUSAL=                    # (선택) canary 누설 차단 시 거부 문구. 미설정 시 도메인 중립 기본값
 ```
@@ -57,7 +58,7 @@ GUARDRAIL_REFUSAL=                    # (선택) canary 누설 차단 시 거부
 단일 호스트: coder=GPU 0,1(`tp-size=2`). 모델 다운로더가 최초 1회 받고 종료하면 SGLang 이 healthy 후 기동.
 
 ```yaml
-# 자체 호스팅 예시 — sglang 서비스 (litellm 과 한 compose 에 둠). repo 의 compose.yaml 은 litellm 만 (발췌)
+# compose.yaml 의 sglang-llm 서비스 (실물 발췌·요약 — model-downloader·litellm 과 한 파일). 전체 플래그는 compose.yaml 참조
 x-sglang-common: &sglang-common
   image: lmsysorg/sglang:v0.5.12.post1-cu130
   ipc: host
@@ -77,7 +78,6 @@ services:
       - --tp-size=2
       - --tool-call-parser=qwen3_coder
       - --reasoning-parser=qwen3
-      - --grammar-backend=xgrammar             # constrained decoding (§5)
       - --context-length=262144
       - --host=0.0.0.0
       - --port=30000
@@ -100,15 +100,15 @@ model_list:
     litellm_params:
       model: openai/Qwen/Qwen3.6-27B-FP8        # openai/ 뒤 = SGLang served-model-name
       api_base: http://sglang-llm:30000/v1       # 컨테이너 DNS
-      api_key: "dummy"
+      api_key: os.environ/OPENAI_API_KEY         # compose 가 :? 로 필수 강제(§1 .env)
 
 guardrails:
   - guardrail_name: "canary-inject"   # pre  — system 맨 앞에 canary 주입(누설 탐지 전제)
-    litellm_params: { guardrail: custom_guardrail.CanaryInjectGuard, mode: "pre_call", default_on: true }
+    litellm_params: { guardrail: custom_guardrail.CanaryInjectGuard, mode: "pre_call", default_on: true, models: ["Qwen3.6-27B"] }
   - guardrail_name: "pii-mask"        # pre  — 입력 고민감 PII 마스킹(전화·이메일·사업자·우편 통과)
-    litellm_params: { guardrail: custom_guardrail.PiiMaskGuard, mode: "pre_call", default_on: true }
+    litellm_params: { guardrail: custom_guardrail.PiiMaskGuard, mode: "pre_call", default_on: true, models: ["Qwen3.6-27B"] }
   - guardrail_name: "safety"          # post — canary 누설 차단 / 욕설 마스킹 (스트리밍/비스트리밍 자동분기)
-    litellm_params: { guardrail: custom_guardrail.SafetyGuard, mode: "post_call", default_on: true }
+    litellm_params: { guardrail: custom_guardrail.SafetyGuard, mode: "post_call", default_on: true, models: ["Qwen3.6-27B"] }
 
 litellm_settings: { drop_params: true, request_timeout: 600 }
 general_settings: { master_key: os.environ/LITELLM_MASTER_KEY }
@@ -175,7 +175,7 @@ curl http://localhost:4000/v1/chat/completions \
 
 ## 5. constrained decoding (분류·플래그 작업)
 
-xgrammar 가 켜져 있으니(§2) 클라이언트에서 바로 강제할 수 있다. 기법·언제 쓰는지는 [llm-프롬프트엔지니어링.md §8](../3-기법/llm-프롬프트엔지니어링.md).
+SGLang OpenAI 호환 엔드포인트로 클라이언트에서 제약 디코딩을 요청할 수 있다. ⚠️ **확인 필요**: 현재 compose 의 `sglang-llm` command 에는 `--grammar-backend` 플래그가 **없다**(SGLang 기본 백엔드 사용). 실제로 제약이 걸리는지는 사용 전 스모크로 검증하고, 특정 백엔드를 고정하려면 compose command 에 `--grammar-backend=<backend>` 를 추가한다. 기법·언제 쓰는지는 [llm-프롬프트엔지니어링.md §8](../3-기법/llm-프롬프트엔지니어링.md).
 
 ```python
 client.chat.completions.create(
@@ -184,7 +184,7 @@ client.chat.completions.create(
 )                                          # vLLM 은 guided_regex/guided_choice (신버전 structured_outputs)
 ```
 
-> 한 요청에 제약 파라미터는 **하나만**. xgrammar 는 Rust-style regex.
+> 한 요청에 제약 파라미터는 **하나만**. regex 문법(예: Rust-style)은 SGLang 이 실제로 쓰는 grammar 백엔드에 따르므로 확인 후 사용.
 
 ---
 
