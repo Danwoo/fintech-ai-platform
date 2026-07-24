@@ -1,4 +1,4 @@
-# LLM 서빙 — SGLang + LiteLLM 게이트웨이 (Qwen3 · 멀티모델 · 가드레일)
+# LLM 서빙 — SGLang + LiteLLM 게이트웨이 (Qwen3 · 단일 진입점 · 가드레일)
 
 > 로컬 GPU 서버에 Qwen3 모델을 **SGLang** 으로 서빙하고, **LiteLLM 게이트웨이**(:4000)로 단일 진입점 + 가드레일을 묶는 스택의 셋업 runbook. LLM 을 자체 서빙하는 구성 전용(`platform/litellm`) — 외부 LLM 을 client 로만 부르는 서비스엔 해당 없음. 모델·버전·GPU 배치는 개념 설명이므로 compose 파일을 기준으로 확인.
 
@@ -15,8 +15,9 @@ flowchart TD
     CLI["Client<br/>(Bearer: LITELLM_MASTER_KEY)"] --> NGX["Nginx: TLS·외부 경계<br/>(외부 진입만, SGLang 묶는 용도 아님)"]
     NGX --> LT["LiteLLM :4000<br/>pre-hook: canary 주입 + PII 마스킹<br/>post-hook: canary 누설 차단 / 욕설 마스킹"]
     LT --> LLM["SGLang sglang-llm :30000<br/>(Qwen3.6-27B coder, GPU 0,1, xgrammar)"]
-    LT --> VLM["SGLang sglang-vlm :30000<br/>(Qwen3-VL-30B-A3B, GPU 2)"]
 ```
+
+> 현재 구성은 SGLang 백엔드가 `sglang-llm` **하나뿐**이다(`Qwen3.6-27B` 는 멀티모달이라 이미지 입력도 이 모델이 받는다). 모델을 늘리면 `model_list` 에 항목을 추가하고 해당 SGLang 을 `api_base` 로 가리키면 된다.
 
 - 클라이언트는 `:4000` 하나만 알고, 요청의 `model` 필드로 모델 선택 → LiteLLM 이 `model_name` 기준 라우팅.
 - 우리 서비스(devactivity 등)는 `LLM_BASE_URL=http://<host>:4000/v1` 로 게이트웨이만 본다 — 챗(스트리밍)·주간리포트(비스트리밍) 모두 여길 지나므로 가드레일이 한곳에서 통일된다.
@@ -39,7 +40,6 @@ platform/litellm/
 ```dotenv
 # served-model-name = LiteLLM이 보내는 model 값 = SGLang --served-model-name (셋 일치 필수)
 LLM_MODEL_NAME=Qwen/Qwen3.6-27B-FP8
-VLM_MODEL_NAME=Qwen/Qwen3-VL-30B-A3B-Instruct-FP8
 HF_TOKEN=<HUGGINGFACE_TOKEN>          # 게이트형 모델/빠른 다운로드용
 LITELLM_MASTER_KEY=<LITELLM_MASTER_KEY>   # 클라이언트 Bearer. 길고 랜덤하게
 PROMPT_CANARY=                        # (선택) 누설 탐지 마커. 미설정 시 기동마다 랜덤 생성. 고정하려면 추측불가 값으로
@@ -54,7 +54,7 @@ GUARDRAIL_REFUSAL=                    # (선택) canary 누설 차단 시 거부
 
 ## 2. SGLang (docker-compose)
 
-단일 호스트: coder=GPU 0,1(`tp-size=2`) / VL=GPU 2(`tp-size=1`, A3B MoE라 단일 GPU 가능). 모델 다운로더가 최초 1회 받고 종료하면 SGLang 이 healthy 후 기동.
+단일 호스트: coder=GPU 0,1(`tp-size=2`). 모델 다운로더가 최초 1회 받고 종료하면 SGLang 이 healthy 후 기동.
 
 ```yaml
 # 자체 호스팅 예시 — sglang 서비스 (litellm 과 한 compose 에 둠). repo 의 compose.yaml 은 litellm 만 (발췌)
@@ -81,11 +81,11 @@ services:
       - --context-length=262144
       - --host=0.0.0.0
       - --port=30000
-  sglang-vlm:                       # Qwen3-VL-30B-A3B (MoE, reasoning-parser 불필요)
-    # ...동일 패턴이나 단일 GPU — device_ids ['2'], --tp-size=1, context-length=131072
 ```
 
-✅ **검증**: `docker compose up -d model-downloader` → 종료 확인 → `docker compose up -d sglang-llm sglang-vlm` → `docker compose ps` 가 `healthy`. `curl http://localhost:30000/health` 가 200.
+> 모델을 더 서빙하려면 같은 패턴으로 서비스를 추가한다(다른 `device_ids`·`--tp-size`·`--served-model-name` + `config.yaml` 의 `model_list` 항목). 현재는 `sglang-llm` 하나만 둔다.
+
+✅ **검증**: `docker compose up -d model-downloader` → 종료 확인 → `docker compose up -d sglang-llm` → `docker compose ps` 가 `healthy`. `curl http://localhost:30000/health` 가 200.
 
 ---
 
@@ -101,8 +101,6 @@ model_list:
       model: openai/Qwen/Qwen3.6-27B-FP8        # openai/ 뒤 = SGLang served-model-name
       api_base: http://sglang-llm:30000/v1       # 컨테이너 DNS
       api_key: "dummy"
-  - model_name: Qwen3-VL-30B-A3B
-    litellm_params: { model: openai/Qwen/Qwen3-VL-30B-A3B-Instruct-FP8, api_base: http://sglang-vlm:30000/v1, api_key: "dummy" }
 
 guardrails:
   - guardrail_name: "canary-inject"   # pre  — system 맨 앞에 canary 주입(누설 탐지 전제)
@@ -156,7 +154,7 @@ RUN python /tmp/get-pip.py && python -m pip install --no-cache-dir korcen
 
 ```bash
 docker compose up -d model-downloader   # 모델 먼저 (최초 1회, 종료까지 대기)
-docker compose up -d                      # sglang-llm, sglang-vlm, litellm
+docker compose up -d                      # sglang-llm, litellm
 docker compose ps                         # 전부 healthy
 ```
 
@@ -192,14 +190,14 @@ client.chat.completions.create(
 
 ## 6. 멀티서버 변형
 
-VL 을 다른 물리 서버에 둘 경우:
+SGLang 을 LiteLLM 과 다른 물리 서버에 둘 경우(GPU 증설·모델 추가로 한 호스트에 안 들어갈 때):
 
-- 서버 B 에서 `sglang-vlm` 만 기동(포트 노출), 서버 A 에 `sglang-llm` + `litellm`.
-- `config.yaml` 의 VLM `api_base` 를 컨테이너 DNS 대신 서버 B 주소로: `api_base: http://server-b:30000/v1`.
+- 서버 B 에서 SGLang 만 기동(포트 노출), 서버 A 에 `litellm`.
+- `config.yaml` 의 해당 `api_base` 를 컨테이너 DNS 대신 서버 B 주소로: `api_base: http://server-b:30000/v1`.
 - LiteLLM 호스트 → 서버 B 의 SGLang 포트가 방화벽/Docker network 로 닿는지 확인. SGLang 은 외부 비노출, LiteLLM 만 진입점.
 - **같은 모델을 여러 서버에 복제**하면 `model_name` 을 동일하게 줘 Router 가 자동 LB/fallback. **서로 다른 모델**이면 이름을 달리해 라우팅.
 
-✅ **검증**: 서버 A 에서 `curl http://server-b:30000/health` 200 (방화벽 통과). LiteLLM 로그에 VLM 라우팅 에러 없음.
+✅ **검증**: 서버 A 에서 `curl http://server-b:30000/health` 200 (방화벽 통과). LiteLLM 로그에 라우팅 에러 없음.
 
 ---
 
