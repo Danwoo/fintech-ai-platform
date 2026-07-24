@@ -8,11 +8,6 @@ from fastapi.responses import JSONResponse
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
-# Content-Length 는 멀티파트 전체 바디(경계·파트 헤더·폼필드 포함) 크기다. 파일당 한도(settings.max_upload_bytes)
-# 위에 프레이밍/폼필드 오버헤드 여유분을 얹어, 한도에 근접한 단일 파일이 프레이밍 때문에 조기 거절되는 것을 막는다.
-# 이 여유분 안(20MB~한도)에 든 실제 초과 파일은 파싱 후 실측 검사(FileService.upload_files)가 정밀 판정한다.
-UPLOAD_BODY_OVERHEAD_MARGIN_BYTES = 1 * 1024 * 1024  # 1 MiB
-
 
 class McpHeaderMiddleware(BaseHTTPMiddleware):
     """MCP tool 내부 호출 시 Authorization 헤더를 FastMCP ContextVar 에서 request scope 에 주입.
@@ -35,19 +30,26 @@ class McpHeaderMiddleware(BaseHTTPMiddleware):
         return response
 
 
-class MaxUploadSizeMiddleware(BaseHTTPMiddleware):
+class MaxRequestBodySizeMiddleware(BaseHTTPMiddleware):
     """업로드 엔드포인트(POST /file)에서 멀티파트 파싱/temp spool 이전에 Content-Length 를 검사해,
-    명백히 한도를 초과한 요청을 조기 413 으로 거절한다 (대용량 바디의 대역폭·temp 디스크·파싱 자원 소모 차단, #109).
+    남용 수준의 거대한 요청만 조기 413 으로 거절한다 (대역폭·temp 디스크·파싱 자원 소모 차단, #109).
 
-    Content-Length 헤더는 조기 거절 '힌트'일 뿐이다 — 없거나 위조/누락될 수 있어 신뢰하지 않는다.
-    실제 크기 판정은 파싱 후 FileService.upload_files 의 file.size 실측 검사가 담당하며, 이 미들웨어는 그 검사를 대체하지 않는다.
+    이건 정밀 한도가 아니라 **남용 차단선**이다:
+
+    - 기준은 settings.max_request_body_bytes(요청 바디 전체) — 파일당 한도가 아니다. Content-Length 는
+      멀티파트 전체 바디(파일들 + 경계·파트 헤더·폼필드) 크기라, 파일당 한도로 재면 정상 다중파일 배치가
+      오탐 거절된다. 그래서 정상 사용을 절대 막지 않을 만큼 넉넉한 상한만 여기서 본다.
+    - **파일당 20MB 정밀 판정은 파싱 후 실측 검사(FileService.upload_files 의 file.size)가 정본**이며,
+      이 미들웨어는 그 검사를 대체하지 않는다.
+    - Content-Length 헤더는 조기 거절 '힌트'일 뿐이다 — 없거나 위조·누락될 수 있어 신뢰하지 않는다.
+      힌트가 없으면 그대로 통과시키고 실측 검사에 맡긴다.
     """
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint):
         if self._is_upload_request(request):
             content_length = self._parse_content_length(request)
             if content_length is not None:
-                limit = settings.max_upload_bytes + UPLOAD_BODY_OVERHEAD_MARGIN_BYTES
+                limit = settings.max_request_body_bytes
                 if content_length > limit:
                     logger.warning(
                         f"{request.method} {request.url.path} 413: "
@@ -55,9 +57,15 @@ class MaxUploadSizeMiddleware(BaseHTTPMiddleware):
                     )
                     return JSONResponse(
                         status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                        content={"detail": f"업로드 크기가 허용 한도({settings.MAX_UPLOAD_SIZE_MB}MB)를 초과했습니다."},
+                        content={
+                            "detail": (
+                                "요청이 너무 큽니다. 한 번에 보낼 수 있는 요청 크기"
+                                f"({settings.MAX_REQUEST_BODY_SIZE_MB}MB)를 초과했습니다. "
+                                "파일을 나눠서 업로드해 주세요."
+                            )
+                        },
                     )
-        # 힌트 미검출(헤더 없음·파싱 불가·한도 이하)이면 통과 — 실측 검사가 최종 판정.
+        # 힌트 미검출(헤더 없음·파싱 불가·차단선 이하)이면 통과 — 파일당 판정은 실측 검사가 한다.
         return await call_next(request)
 
     @staticmethod
@@ -95,7 +103,7 @@ def get_middlewares():
             allow_headers=["*"],
         ),
         # CORS 다음(바깥에서 두 번째)에 둬, 조기 413 응답에도 CORS 헤더가 붙고 파싱 전에 단락된다.
-        Middleware(MaxUploadSizeMiddleware),
+        Middleware(MaxRequestBodySizeMiddleware),
         Middleware(McpHeaderMiddleware),
         Middleware(ProcessTimeMiddleware),
     ]
