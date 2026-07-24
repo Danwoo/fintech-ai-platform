@@ -50,7 +50,9 @@ class WorkspaceService:
         parsed: ParsedDoc = await run_in_threadpool(self.parser.parse, file_bytes, filename)
         chunks: list[Chunk] = await run_in_threadpool(chunk_pages, [(page.page_no, page.text) for page in parsed.pages])
         if not chunks:
-            return IngestOut(job_ref=atch_file_id, chunk_count=0, status="indexed")
+            # 텍스트 추출 0건(스캔 PDF·빈 문서) — "indexed" 와 구분해 호출자(슬라이스 B)가
+            # 추출 실패(구조 파서 필요)를 색인 성공과 오인하지 않게 한다.
+            return IngestOut(job_ref=atch_file_id, chunk_count=0, status="empty")
 
         if not self.use_real_api:
             # MOCK: 임베딩·pg 없이 파싱/청킹 결과만 리포트 (단독 동작)

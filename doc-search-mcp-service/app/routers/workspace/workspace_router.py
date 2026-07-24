@@ -8,7 +8,7 @@
 
 from core.auth_context import get_company_id
 from core.container import Container
-from core.security import verify_access_token
+from core.security import require_service_token, verify_access_token
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from schemas.vector_search.vector_search_schema import TopicSearchIn, TopicSearchOut
@@ -33,7 +33,7 @@ async def topic_search_workspace(
     return await workspace_service.search_topic(body, get_company_id())
 
 
-@router.post("/ingest")
+@router.post("/ingest", dependencies=[Depends(require_service_token)])
 @inject
 async def ingest_document(
     file: UploadFile = File(description="원본 문서 파일 (pdf/txt/md)"),
@@ -44,8 +44,10 @@ async def ingest_document(
     doc_title: str = Form(description="원본 파일명 (근거 표시명 = file_nm)"),
     workspace_service: WorkspaceService = Depends(Provide[Container.workspace_service]),
 ) -> IngestOut:
-    """내부 전용 — 문서 bytes 를 받아 파싱·청킹·임베딩 후 pgvector 에 색인. 서비스 토큰 검증만(role/company 게이트 없음).
+    """내부 전용 — 문서 bytes 를 받아 파싱·청킹·임베딩 후 pgvector 에 색인.
 
+    require_service_token 게이트로 서비스 토큰(typ=service) 전용 — 유효 JWT 라도 일반 사용자·에이전트는
+    403. 서비스 토큰만 도달하므로 company_id(Form)는 backend 오케스트레이터가 넘긴 대상 테넌트로 신뢰한다.
     MCP tool 아님(operation_id 없음 + main.py route_maps EXCLUDE). backend 오케스트레이터만 호출한다.
     """
     file_bytes = await file.read()

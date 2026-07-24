@@ -8,4 +8,6 @@ from pydantic import BaseModel, Field
 class IngestOut(BaseModel):
     job_ref: str = Field(description="인제스트 참조 키 (원본 첨부 그룹 atch_file_id)")
     chunk_count: int = Field(description="색인된 청크 수")
-    status: Literal["indexed", "failed"] = Field(description="처리 상태")
+    status: Literal["indexed", "empty", "failed"] = Field(
+        description="처리 상태 — indexed(청크 색인 완료) / empty(텍스트 추출 0건: 스캔 PDF·빈 문서, 구조 파서 필요) / failed"
+    )

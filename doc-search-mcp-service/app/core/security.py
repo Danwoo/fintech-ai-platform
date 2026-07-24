@@ -2,9 +2,9 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import jwt
-from core.auth_context import set_auth_context
+from core.auth_context import is_service_token, set_auth_context
 from core.config import settings
-from core.exceptions import UnauthorizedError
+from core.exceptions import ForbiddenError, UnauthorizedError
 from fastapi import Request, Security
 from fastapi.security import APIKeyHeader
 
@@ -48,6 +48,17 @@ async def verify_access_token(
         company_id=payload.get("company_id"),
         is_service=payload.get("typ") == "service",
     )
+
+
+def require_service_token() -> None:
+    """서비스 토큰(typ=service) 전용 게이트 — 내부 쓰기 경로(인제스트)에 건다.
+
+    라우터 레벨 verify_access_token 이 먼저 실행돼 신원 컨텍스트(is_service)를 채운 뒤 이 검사가 돈다.
+    서비스 토큰이 아니면(유효 JWT 라도 일반 사용자·에이전트) ForbiddenError(403) — 사용자가 임의
+    company_id 로 타 테넌트 코퍼스를 오염시키는 것을 도구 표면에서 차단한다(design-160 AD-1).
+    """
+    if not is_service_token():
+        raise ForbiddenError()
 
 
 def verify_websocket_token(token: str | None) -> dict[str, Any]:
