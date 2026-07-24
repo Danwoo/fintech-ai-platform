@@ -35,6 +35,19 @@ class Settings(BaseSettings):
     OPENAI_RERANKER_MODEL_NAME: str = "BAAI/bge-reranker-v2-m3"
     OPENAI_API_KEY: str = ""
 
+    # 사용자 워크스페이스 문서 인제스트 — pgvector 벡터 스토어 (USE_REAL_API=true + host 설정 시 사용).
+    # host 가 비어 있으면 pg 없이 MOCK 경로로 동작 (Milvus/Redis 와 동일한 fail-soft 정책).
+    DOC_VECTOR_DB_HOST: str = ""
+    DOC_VECTOR_DB_PORT: int = 5432
+    DOC_VECTOR_DB_NAME: str = ""
+    DOC_VECTOR_DB_USER: str = ""
+    DOC_VECTOR_DB_PASSWORD: str = ""
+    WORKSPACE_TABLE: str = "workspace_doc_chunk"
+    EMBEDDING_DIM: int = 1024
+
+    # 텍스트 추출 파서 선택 — "opensource"(pypdf, 기본) / "upstage"(후속 슬라이스, 미구현)
+    DOC_PARSER: str = "opensource"
+
     model_config = SettingsConfigDict(
         env_file=f".env.{os.getenv('APP_ENV', 'production')}",
         env_file_encoding="utf-8",
