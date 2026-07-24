@@ -37,6 +37,7 @@ class Container(containers.DeclarativeContainer):
         SchedulerService,
         scheduler_repository=scheduler_repository,
         activity_report_service=activity_report_service,
+        mcp_client=mcp_client,
     )
     portfolio_chat_service = providers.Factory(
         PortfolioChatService,
