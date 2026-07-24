@@ -437,9 +437,8 @@ jobs:
               # 삭제 전 활성 에이전트를 먼저 중단(버그 #2) — 살아있는 에이전트 터미널(kimi/claude)이
               # worktree delete 를 막는 정황 실측(PR#119). ⚠ --interrupt 종료 효과는 제안값·라이브 확정.
               orca-ide terminal send --terminal "$h" --interrupt $ORCA_ENV >/dev/null 2>&1 || true
-              orca-ide terminal delete "$h" $ORCA_ENV --json >/dev/null 2>&1 || true
             done
-            orca-ide terminal delete "name:$WT_NAME" $ORCA_ENV --json >/dev/null 2>&1 || true
+            orca-ide terminal stop --worktree "name:$WT_NAME" $ORCA_ENV --json >/dev/null 2>&1 || true
           }
 
           cleanup_worker() {   # 터미널(전부, 에이전트는 먼저 중단) → 워크트리. review-* 자체 브랜치라 삭제 안전
@@ -449,7 +448,7 @@ jobs:
             # 끝내 실패면 다음 run 선청소(멱등)에 위임(현행 백스톱 유지). ⚠ 활성-터미널 거부 거동은 라이브 확정.
             local attempt
             for attempt in 1 2 3; do
-              if orca-ide worktree delete "name:$WT_NAME" $ORCA_ENV --json >/dev/null 2>&1; then return 0; fi
+              if orca-ide worktree rm --worktree "name:$WT_NAME" --force $ORCA_ENV --json >/dev/null 2>&1; then return 0; fi
               orca-ide worktree show "name:$WT_NAME" $ORCA_ENV --json 2>/dev/null \
                 | jq -e '.result.path // empty' >/dev/null 2>&1 || return 0   # 이미 없음 → 완료
               delete_worktree_terminals   # 잔존 터미널 재중단·재삭제 후 재시도
@@ -615,9 +614,8 @@ jobs:
             # 활성 에이전트 먼저 중단 후 삭제(버그 #2) — 살아있는 에이전트 터미널이 worktree delete 를
             # 막는 정황 실측(PR#119 review-119-<agent> 잔존). ⚠ --interrupt 종료 효과는 제안값·라이브 확정.
             orca-ide terminal send --terminal "$H" --interrupt $ORCA_ENV >/dev/null 2>&1 || true
-            orca-ide terminal delete "$H" $ORCA_ENV --json >/dev/null 2>&1 || true
           done
-          orca-ide terminal delete "name:$WT_NAME" $ORCA_ENV --json \
+          orca-ide terminal stop --worktree "name:$WT_NAME" $ORCA_ENV --json \
             || echo "::warning::리뷰 터미널 정리 실패 — 다음 run 선청소가 재시도"
           # worktree delete 는 활성 터미널 정리 지연으로 실패할 수 있어(버그 #2) 짧은 백오프로 재시도.
           # 워크트리가 이미 없으면 완료로 간주. 끝내 실패면 경고 후 다음 run 선청소(멱등)에 위임
@@ -625,7 +623,7 @@ jobs:
           WT_DELETE_RETRY="${ORCA_WT_DELETE_RETRY_SECS:-2}"
           WT_DELETED=0
           for attempt in 1 2 3; do
-            if orca-ide worktree delete "name:$WT_NAME" $ORCA_ENV --json; then WT_DELETED=1; break; fi
+            if orca-ide worktree rm --worktree "name:$WT_NAME" --force $ORCA_ENV --json; then WT_DELETED=1; break; fi
             orca-ide worktree show "name:$WT_NAME" $ORCA_ENV --json 2>/dev/null \
               | jq -e '.result.path // empty' >/dev/null 2>&1 || { WT_DELETED=1; break; }   # 이미 없음 → 완료
             echo "::warning::리뷰 워크트리 정리 실패(시도 ${attempt}/3, 활성 터미널?) — ${WT_DELETE_RETRY}s 후 재시도"
@@ -805,9 +803,8 @@ jobs:
               # 삭제 전 활성 에이전트를 먼저 중단(버그 #2) — 살아있는 에이전트 터미널(kimi/claude)이
               # worktree delete 를 막는 정황 실측(PR#119). ⚠ --interrupt 종료 효과는 제안값·라이브 확정.
               orca-ide terminal send --terminal "$h" --interrupt $ORCA_ENV >/dev/null 2>&1 || true
-              orca-ide terminal delete "$h" $ORCA_ENV --json >/dev/null 2>&1 || true
             done
-            orca-ide terminal delete "name:$WT_NAME" $ORCA_ENV --json >/dev/null 2>&1 || true
+            orca-ide terminal stop --worktree "name:$WT_NAME" $ORCA_ENV --json >/dev/null 2>&1 || true
           }
 
           cleanup_worker() {   # 터미널(전부, 에이전트는 먼저 중단) → 워크트리. review-* 자체 브랜치라 삭제 안전
@@ -817,7 +814,7 @@ jobs:
             # 끝내 실패면 다음 run 선청소(멱등)에 위임(현행 백스톱 유지). ⚠ 활성-터미널 거부 거동은 라이브 확정.
             local attempt
             for attempt in 1 2 3; do
-              if orca-ide worktree delete "name:$WT_NAME" $ORCA_ENV --json >/dev/null 2>&1; then return 0; fi
+              if orca-ide worktree rm --worktree "name:$WT_NAME" --force $ORCA_ENV --json >/dev/null 2>&1; then return 0; fi
               orca-ide worktree show "name:$WT_NAME" $ORCA_ENV --json 2>/dev/null \
                 | jq -e '.result.path // empty' >/dev/null 2>&1 || return 0   # 이미 없음 → 완료
               delete_worktree_terminals   # 잔존 터미널 재중단·재삭제 후 재시도
@@ -983,9 +980,8 @@ jobs:
             # 활성 에이전트 먼저 중단 후 삭제(버그 #2) — 살아있는 에이전트 터미널이 worktree delete 를
             # 막는 정황 실측(PR#119 review-119-<agent> 잔존). ⚠ --interrupt 종료 효과는 제안값·라이브 확정.
             orca-ide terminal send --terminal "$H" --interrupt $ORCA_ENV >/dev/null 2>&1 || true
-            orca-ide terminal delete "$H" $ORCA_ENV --json >/dev/null 2>&1 || true
           done
-          orca-ide terminal delete "name:$WT_NAME" $ORCA_ENV --json \
+          orca-ide terminal stop --worktree "name:$WT_NAME" $ORCA_ENV --json \
             || echo "::warning::리뷰 터미널 정리 실패 — 다음 run 선청소가 재시도"
           # worktree delete 는 활성 터미널 정리 지연으로 실패할 수 있어(버그 #2) 짧은 백오프로 재시도.
           # 워크트리가 이미 없으면 완료로 간주. 끝내 실패면 경고 후 다음 run 선청소(멱등)에 위임
@@ -993,7 +989,7 @@ jobs:
           WT_DELETE_RETRY="${ORCA_WT_DELETE_RETRY_SECS:-2}"
           WT_DELETED=0
           for attempt in 1 2 3; do
-            if orca-ide worktree delete "name:$WT_NAME" $ORCA_ENV --json; then WT_DELETED=1; break; fi
+            if orca-ide worktree rm --worktree "name:$WT_NAME" --force $ORCA_ENV --json; then WT_DELETED=1; break; fi
             orca-ide worktree show "name:$WT_NAME" $ORCA_ENV --json 2>/dev/null \
               | jq -e '.result.path // empty' >/dev/null 2>&1 || { WT_DELETED=1; break; }   # 이미 없음 → 완료
             echo "::warning::리뷰 워크트리 정리 실패(시도 ${attempt}/3, 활성 터미널?) — ${WT_DELETE_RETRY}s 후 재시도"
