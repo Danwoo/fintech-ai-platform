@@ -62,6 +62,7 @@ class Watchlist(Base):
     priority: Mapped[str | None] = mapped_column(String(5), nullable=True)
     use_at: Mapped[str | None] = mapped_column(String(1), default="Y", server_default="Y")
     memo: Mapped[str | None] = mapped_column(String(1300), nullable=True)
+    atch_file_id: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     reg_dt: Mapped[datetime.datetime | None] = mapped_column(DateTime, default=func.now())
     reg_id: Mapped[str | None] = mapped_column(String(100), nullable=True)

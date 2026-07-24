@@ -12,6 +12,7 @@ class Watchlist(TrimmedBaseModel):
     priority: str | None = Field(None, max_length=5)
     use_at: str | None = Field("Y", max_length=1)
     memo: str | None = Field(None, max_length=1300)
+    atch_file_id: str | None = Field(None, max_length=20)
 
 
 class WatchlistOut(Watchlist, CommonEntity):
