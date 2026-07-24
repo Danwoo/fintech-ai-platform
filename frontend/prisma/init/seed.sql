@@ -68,9 +68,9 @@ INSERT INTO TN_Menu (menu_id, menu_nm, upper_menu_id, menu_level, sort_ordr, use
 VALUES
 ('mbiz0000', '업무관리',   NULL,       1, 10,  'Y', NULL,                            'event',       CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
 ('msys0000', '시스템관리', NULL,       1, 999, 'Y', NULL,                            'preferences', CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
-('mbiz1001', '회원관리',   'mbiz0000', 2, 10,  'Y', 'admin/todo',                    'check',       CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
-('mbiz1002', '카테고리관리', 'mbiz0000', 2, 20,  'Y', 'admin/category',                'box',         CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
-('mbiz1003', '대시보드',     'mbiz0000', 2, 30,  'Y', 'admin/dashboard',               'chart',       CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('mbiz1001', '관심종목',    'mbiz0000', 2, 10,  'Y', 'admin/watchlist',               'check',       CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('mbiz1002', '포트폴리오',   'mbiz0000', 2, 20,  'Y', 'admin/portfolio',               'box',         CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
+('mbiz1003', 'NAV대시보드', 'mbiz0000', 2, 30,  'Y', 'admin/nav',                     'chart',       CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
 ('mbiz1004', '개발활동 조회', 'mbiz0000', 2, 40,  'Y', 'admin/devactivity',                'search',   CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
 ('mbiz1005', '스케줄러 관리', 'mbiz0000', 2, 50,  'Y', 'admin/devactivity/scheduler', 'event',    CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
 ('msys1001', '코드관리',     'msys0000', 2, 10, 'Y', 'admin/common/system/code',      'doc',         CURRENT_TIMESTAMP, 'MGR', CURRENT_TIMESTAMP, 'MGR'),
