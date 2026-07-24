@@ -4,16 +4,28 @@ import { useRef, useCallback, useEffect, useState, useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import { TimeSeriesDataPoint, ChartSeriesConfig, ChartOptions } from "./types";
 
-function buildMarkLine(limits?: { upl: number; lpl: number }) {
+const DEFAULT_UPL_COLOR = "#ef4444"; // 빨강
+const DEFAULT_LPL_COLOR = "#3b82f6"; // 파랑
+
+// upl/lpl 은 독립적으로 옵셔널 — 준 값만 선을 그린다. 0 도 유효(!= null 로 판정).
+// name(라벨)이 label formatter "{b}: {c}"로 함께 표시돼 색만으로 상태를 나타내지 않는다.
+function buildMarkLine(limits?: ChartSeriesConfig["limits"]) {
   if (!limits) return undefined;
+  const lines: { name: string; yAxis: number; lineStyle: { color: string }; label: { color: string } }[] = [];
+  if (limits.upl != null) {
+    const color = limits.uplColor ?? DEFAULT_UPL_COLOR;
+    lines.push({ name: limits.uplLabel ?? "U", yAxis: limits.upl, lineStyle: { color }, label: { color } });
+  }
+  if (limits.lpl != null) {
+    const color = limits.lplColor ?? DEFAULT_LPL_COLOR;
+    lines.push({ name: limits.lplLabel ?? "L", yAxis: limits.lpl, lineStyle: { color }, label: { color } });
+  }
+  if (lines.length === 0) return undefined;
   return {
     symbol: "none",
     label: { formatter: "{b}: {c}", position: "end" },
     lineStyle: { type: "dashed", width: 1 },
-    data: [
-      { name: "U", yAxis: limits.upl, lineStyle: { color: "#ef4444" }, label: { color: "#ef4444" } },
-      { name: "L", yAxis: limits.lpl, lineStyle: { color: "#3b82f6" }, label: { color: "#3b82f6" } },
-    ],
+    data: lines,
   };
 }
 
@@ -302,17 +314,28 @@ export default function TimeSeriesChart<T extends TimeSeriesDataPoint>({
     >
       <h3 className="text-lg font-semibold mb-3">{title}</h3>
       <div ref={containerRef} style={{ flex: 1, minHeight: 0 }}>
-        {initDims && data.length > 0 && (
-          <ReactECharts
-            key={seriesConfigs.map((c) => c.key).join("-")}
-            option={chartOption}
-            style={{ height: "100%", width: "100%" }}
-            notMerge={false}
-            lazyUpdate={true}
-            onChartReady={onChartReady}
-            onEvents={onEvents}
-            opts={echartsOpts}
-          />
+        {data.length === 0 ? (
+          // 데이터 0건: 제목만 남은 빈 패널("고장"으로 읽힘) 대신 명시적 빈 상태
+          <div role="status" className="flex items-center justify-center h-full text-gray-500">
+            <div className="text-center">
+              <div className="text-4xl mb-4">📊</div>
+              <div className="text-lg mb-2">데이터가 없습니다</div>
+              <div className="text-sm">표시할 시계열 데이터가 없습니다.</div>
+            </div>
+          </div>
+        ) : (
+          initDims && (
+            <ReactECharts
+              key={seriesConfigs.map((c) => c.key).join("-")}
+              option={chartOption}
+              style={{ height: "100%", width: "100%" }}
+              notMerge={false}
+              lazyUpdate={true}
+              onChartReady={onChartReady}
+              onEvents={onEvents}
+              opts={echartsOpts}
+            />
+          )
         )}
       </div>
     </div>
