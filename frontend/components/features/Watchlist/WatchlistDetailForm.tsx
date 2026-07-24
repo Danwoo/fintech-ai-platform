@@ -1,14 +1,15 @@
 "use client";
 
+import { useRef } from "react";
 import { useFormState } from "@/hooks/shared/useFormState";
-import { Button, TextBox, SelectBox, NumberBox, TextArea } from "@/components/shared/ui";
+import { Button, TextBox, SelectBox, NumberBox, TextArea, FileUploader, FileUploaderRef } from "@/components/shared/ui";
 import { TableRow, TableCell, TableGroup } from "@/components/shared/Layout";
 import { Watchlist } from "@/schemas/watchlist/watchlist";
 
 interface Props {
   isNew: boolean;
   initialData: Partial<Watchlist>;
-  onSubmit: (data: Watchlist) => Promise<boolean>;
+  onSubmit: (data: Watchlist & { researchFiles?: File[] }) => Promise<boolean>;
   onCancel?: () => void;
   codeList?: any;
 }
@@ -16,11 +17,21 @@ interface Props {
 export default function WatchlistDetailForm({ initialData, isNew, codeList, onSubmit, onCancel }: Props) {
   const { formData, handleFieldChange, getFieldProps, handleSubmit } = useFormState<Watchlist>(initialData);
 
+  const researchUploaderRef = useRef<FileUploaderRef>(null);
+
+  // 폼 필드 + 업로더가 보유한 파일을 합쳐 서비스로 전달 (서비스가 업로드→atch_file_id 치환)
+  const handleFormSubmit = async (data: Watchlist) => {
+    return await onSubmit({
+      ...data,
+      researchFiles: researchUploaderRef.current?.selectFiles() || [],
+    });
+  };
+
   return (
     <div className="h-full flex flex-col">
       <div className="flex-shrink-0 mb-2">
         <div className="flex gap-2 justify-end">
-          <Button text="저장" onClick={() => handleSubmit(onSubmit)} />
+          <Button text="저장" onClick={() => handleSubmit(handleFormSubmit)} />
           {onCancel && !isNew && <Button text="취소" onClick={onCancel} stylingMode="outlined" type="normal" />}
         </div>
       </div>
@@ -129,6 +140,21 @@ export default function WatchlistDetailForm({ initialData, isNew, codeList, onSu
                 getFieldProps={getFieldProps}
                 maxLength={1300}
                 height={100}
+              />
+            </TableCell>
+          </TableRow>
+
+          {/* 리서치 문서 첨부 — 애널리스트 리포트·IR 덱·투자 메모(PDF/이미지). 모델의 atch_file_id 1개에 대응하는 단일 슬롯 */}
+          <TableRow>
+            <TableCell label="리서치 문서" colSpan={3}>
+              <FileUploader
+                ref={researchUploaderRef}
+                atchFileId={initialData.atch_file_id}
+                fileType="all"
+                multiple={true}
+                maxFileCount={5}
+                fieldName="researchFiles"
+                getFieldProps={getFieldProps}
               />
             </TableCell>
           </TableRow>

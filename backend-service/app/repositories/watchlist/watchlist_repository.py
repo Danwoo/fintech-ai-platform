@@ -20,6 +20,7 @@ class WatchlistRepository:
                      , priority
                      , use_at
                      , memo
+                     , atch_file_id
                      , FORMAT(reg_dt, 'yyyy-MM-dd HH:mm:ss') AS reg_dt
                      , reg_id
                      , FORMAT(mod_dt, 'yyyy-MM-dd HH:mm:ss') AS mod_dt
@@ -92,6 +93,7 @@ class WatchlistRepository:
                , priority
                , use_at
                , memo
+               , atch_file_id
                , reg_id
                , reg_dt
                , mod_id
@@ -110,6 +112,7 @@ class WatchlistRepository:
                , :priority
                , :use_at
                , :memo
+               , :atch_file_id
                , :reg_id
                , CURRENT_TIMESTAMP
                , :reg_id
@@ -133,6 +136,7 @@ class WatchlistRepository:
                  , priority     = :priority
                  , use_at       = :use_at
                  , memo         = :memo
+                 , atch_file_id = :atch_file_id
                  , mod_id       = :mod_id
                  , mod_dt       = CURRENT_TIMESTAMP
              WHERE ticker        = :ticker

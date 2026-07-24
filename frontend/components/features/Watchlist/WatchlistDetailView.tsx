@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@/components/shared/ui";
+import { Button, FileListDisplay } from "@/components/shared/ui";
 import { TableRow, TableCell, TableGroup } from "@/components/shared/Layout";
 import { formatNumber } from "@/utils/common/formatters";
 import { WatchlistOut } from "@/schemas/watchlist/watchlist";
@@ -58,6 +58,11 @@ export default function WatchlistDetailView({ data, onEdit, onDelete, codeList }
               <div className="whitespace-pre-wrap leading-relaxed" style={{ minHeight: "80px", verticalAlign: "top" }}>
                 {data.memo}
               </div>
+            </TableCell>
+          </TableRow>
+          <TableRow>
+            <TableCell label="리서치 문서" colSpan={3}>
+              <FileListDisplay atchFileId={data.atch_file_id} />
             </TableCell>
           </TableRow>
           <TableRow>
