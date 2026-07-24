@@ -133,6 +133,7 @@ services:
       - ./multi-agent-service/app/.env.staging
     networks:
       - fullstack
+      - mssql
       - victorialogs
     environment:
       APP_ENV: staging

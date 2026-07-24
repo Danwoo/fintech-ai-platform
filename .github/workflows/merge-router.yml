@@ -77,6 +77,7 @@ jobs:
   # 잡 id 는 merge-route — cross-review.yml 의 entry 잡도 'route' 라, 같은 SHA 에 route 체크런이
   # 두 줄로 겹치는 혼동을 피한다 (cross-review 쪽 route 는 더 널리 참조돼 유지).
   merge-route:
+    name: "merge: auto-router (비게이트)"
     # review: passed 의 부착/회수·push·base 변경만 관심 대상 — 나머지 라벨 이벤트는 스킵
     # (값 전체를 따옴표로 감싼다 — 표현식 내 'review: passed' 의 콜론이 YAML 평문 스칼라를 깨뜨림)
     if: "${{ github.event.action == 'synchronize' || github.event.action == 'edited' || github.event.label.name == 'review: passed' }}"
@@ -173,7 +174,11 @@ jobs:
             # ── 결정론적 가드 (회의론 지적 4): 판정 라벨은 자기 신고 표면 — cross-review
             #    판정 코멘트의 기계 마커(verdict=merge_ok + 현재 head SHA, 워크플로가 생성)가
             #    있어야만 arm 한다. 라벨 수동 부착·지휘자 로컬 리뷰 부착(마커 없음)은 사람 대기열로.
-            if ! gh api "repos/$REPO/issues/$PR/comments" --paginate --jq '.[].body' \
+            # 저자 필터 필수 (OWNER/MEMBER/COLLABORATOR) — public 레포에서 제3자가 위조 마커를
+            # 달아 수동 review:passed 부착 경로의 자동머지 arm 을 탈취하는 fail-open 을 막는다.
+            # cross-review 의 다른 4개 마커 소비자(리뷰 폴러·publish 폴백·멱등 가드)와 동일 필터.
+            if ! gh api "repos/$REPO/issues/$PR/comments" --paginate \
+                 --jq '.[] | select(.author_association=="OWNER" or .author_association=="MEMBER" or .author_association=="COLLABORATOR") | .body' \
                  | grep -qE "^<!-- cross-review v1 model=(claude|kimi|codex) verdict=merge_ok sha=${SHA} -->$"; then
               gh api -X POST "repos/$REPO/issues/$PR/labels" -f "labels[]=human: merge" >/dev/null
               gh pr comment "$PR" --repo "$REPO" --body "**사람 머지 대기열 등록** (\`human: merge\`) — 저위험이나 cross-review 판정 코멘트의 기계 마커(merge_ok · ${SHA}) 부재. 판정 라벨 단독으로는 arm 하지 않는다 (라벨은 자기 신고 표면 — 수동·로컬 리뷰 부착분은 사람 경로). 위험 판독: ${EVIDENCE:-연결 이슈 없음}"

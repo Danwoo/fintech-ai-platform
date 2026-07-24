@@ -145,6 +145,7 @@ permissions: {}   # 기본 0 — 잡별 최소 부여
 jobs:
   # ── 1. 저자 판별 · 위험도 판독 · 리뷰어 라우팅 · 컨텍스트 번들 ─────────────────
   route:
+    name: "review: route"
     # draft 제외 + same-repo 만 — fork 는 시크릿 부재로 어차피 못 돌지만, self-hosted 리뷰 잡의
     # 상류 가드로서 명시적으로 잠근다 (리뷰 잡 3종에도 각자 같은 가드 — 심층 방어)
     if: ${{ !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository }}
@@ -291,6 +292,7 @@ jobs:
 
   # ── 2a. claude 리뷰 잡 (kimi·codex·사람 작성분) — self-hosted · 로컬 CLI · GitHub 쓰기 권한 0 ──
   review-claude:
+    name: "review: claude"
     needs: route
     # same-repo 가드 (심층 방어): route 가드가 1차지만, fork PR 이 self-hosted 러너에
     # 오르는 경로를 잡 자체에서도 잠근다
@@ -665,6 +667,7 @@ jobs:
 
   # ── 2b. kimi 리뷰 잡 (claude 작성분) — self-hosted · 로컬 CLI · 체크아웃 없는 잡, GitHub 쓰기 권한 0 ──
   review-kimi:
+    name: "review: kimi"
     needs: route
     # same-repo 가드 (심층 방어): fork PR 이 self-hosted 러너에 오르는 경로를 잡 자체에서도 잠근다
     if: ${{ needs.route.outputs.reviewer == 'kimi' && github.event.pull_request.head.repo.full_name == github.repository }}
@@ -1033,6 +1036,7 @@ jobs:
 
   # ── 2c. codex 리뷰 잡 (고위험 claude 작성분) — 스텁: 한도 복귀(~2026-08-08) 후 구현 ──
   review-codex:
+    name: "review: codex"
     needs: route
     # same-repo 가드 (심층 방어) — 스텁이지만 self-hosted 잡의 공통 가드를 유지한다
     if: ${{ needs.route.outputs.reviewer == 'codex' && github.event.pull_request.head.repo.full_name == github.repository }}
@@ -1068,6 +1072,7 @@ jobs:
 
   # ── 3. 판정 게시·판정 라벨 — GitHub-hosted 유지 · 쓰기 권한만, 모델 자격 증명 0 ──
   publish:
+    name: "review: publish"
     needs: [route, review-claude, review-kimi, review-codex]
     if: ${{ always() && needs.route.result == 'success' }}
     runs-on: ubuntu-latest
