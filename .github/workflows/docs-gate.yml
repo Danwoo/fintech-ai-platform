@@ -1,0 +1,51 @@
+# docs-gate — 문서 전용 PR 을 사람 머지 대기열로 라우팅한다 (설계 공백 처방)
+#
+# 왜 필요한가 (실측 반복): cross-review 는 paths-ignore(**.md·docs/**)로 문서 전용 PR 을 리뷰하지
+# 않는다 — 문서용 AI 리뷰 루브릭이 아직 없어서다. 그런데 그러면 review: passed 가 안 붙어 required
+# 커밋상태 review-gate 가 영영 pending → 문서 PR 이 머지 불가로 갇힌다(#150 실측, #146 과 같은 계열).
+#
+# 처방: 문서 전용 PR(변경 파일이 전부 **.md·docs/**)이면 human: merge 를 부착한다. 사람이 문서를
+# 읽고 머지하는 게 정확한 리뷰다(AI 루브릭 부재 → 사람이 리뷰어). review-gate 가 human: merge 를
+# success 로 동기화하므로 게이트가 풀린다. AI 자동 통과가 아니라 사람 게이트로 라우팅하는 것 —
+# 저자≠리뷰어·사람 최종 게이트 원칙 유지.
+#
+# 문서가 아닌 파일이 하나라도 섞이면 cross-review 가 정상 리뷰하므로 이 워크플로는 무행동한다.
+#
+# 배포: 대상 레포 .github/workflows/ 에 복사. (필요 라벨 human: merge 는 이미 정의됨.)
+
+name: docs-gate
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  pull-requests: write   # human: merge 라벨 부착
+  contents: read
+
+jobs:
+  route-docs-pr:
+    name: "chore: docs-gate"
+    runs-on: ubuntu-latest
+    steps:
+      - name: 문서 전용 PR 이면 human:merge 로 라우팅
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -uo pipefail
+          # PR 의 변경 파일 전체 (페이지네이션). 하나라도 문서가 아니면 cross-review 소관이라 무행동.
+          files=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename')
+          [ -z "$files" ] && { echo "변경 파일 없음 — 무행동"; exit 0; }
+          nondoc=$(printf '%s\n' "$files" | grep -vE '\.md$|^docs/' || true)
+          if [ -n "$nondoc" ]; then
+            echo "문서 외 파일 포함 — cross-review 소관, docs-gate 무행동:"
+            printf '  %s\n' "$nondoc" | head
+            exit 0
+          fi
+          # 여기 도달 = 변경이 전부 문서. cross-review 는 paths-ignore 로 스킵됐으므로 게이트가
+          # pending 에 갇힌다 → 사람 머지 대기열로 라우팅한다.
+          echo "문서 전용 PR — human: merge 부착 (사람이 문서 검토 후 머지)"
+          gh pr edit "$PR" --repo "$REPO" --add-label "human: merge" >/dev/null
+          gh pr comment "$PR" --repo "$REPO" --body "**문서 전용 PR — 사람 머지 대기열(\`human: merge\`)**. 교차 리뷰는 문서 루브릭 공백으로 문서 PR 을 리뷰하지 않아, 사람이 문서를 검토하고 머지하는 것이 리뷰입니다. (review-gate 가 human: merge 를 success 로 동기화해 게이트가 풀립니다.)"
