@@ -10,6 +10,7 @@ from fastapi.concurrency import run_in_threadpool
 from services.message_queue.message_queue_service import MessageQueueService
 
 PRODUCE_INTERVAL = 10
+ERROR_BACKOFF = 5  # 이터레이션 예외 후 재시도 전 대기(초) — 실패 지속 시 tight-loop/CPU 스핀 방지 (#68)
 TOPIC = "nav.snapshot"
 SEED_COMPANY_ID = 1  # 합성 NAV 시계열이 적재되는 시드 테넌트 (데모 데이터 — 실사용 시 테넌트별 producer 로 확장)
 
@@ -52,12 +53,19 @@ class NavProducerManager:
 
         async def loop():
             while not self.should_stop:
-                snapshot = self._next_snapshot()
-                await run_in_threadpool(
-                    message_queue_service.publish,
-                    {"topic": TOPIC, "payload": json.dumps(snapshot), "reg_id": "system"},
-                )
-                await asyncio.sleep(PRODUCE_INTERVAL)
+                try:
+                    snapshot = self._next_snapshot()
+                    await run_in_threadpool(
+                        message_queue_service.publish,
+                        {"topic": TOPIC, "payload": json.dumps(snapshot), "reg_id": "system"},
+                    )
+                    await asyncio.sleep(PRODUCE_INTERVAL)
+                except asyncio.CancelledError:
+                    raise  # 정상 종료(stop() 의 task.cancel) 신호 — 삼키지 않고 전파해 루프를 끝낸다
+                except Exception:
+                    # 개별 이터레이션 예외로 task 가 죽지 않게: 로깅 후 백오프하고 계속 발행 (#68)
+                    logger.exception("NAV_PRODUCER_LOOP_ERROR — 이터레이션 실패, 백오프 후 재시도")
+                    await asyncio.sleep(ERROR_BACKOFF)
 
         self.task = asyncio.create_task(loop())
 
