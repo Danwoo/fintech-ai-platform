@@ -1,5 +1,5 @@
-import MetricDashboardContainer from "@/components/features/Metric/MetricDashboardContainer";
+import NavDashboardContainer from "@/components/features/Nav/NavDashboardContainer";
 
 export default function DashboardPage() {
-  return <MetricDashboardContainer />;
+  return <NavDashboardContainer />;
 }
