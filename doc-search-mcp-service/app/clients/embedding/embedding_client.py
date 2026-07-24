@@ -31,6 +31,25 @@ class EmbeddingClient:
         resp.raise_for_status()
         return resp.json()["data"][0]["embedding"]
 
+    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        """문서 청크 배치 임베딩 (인제스트용) — embed_query 와 동일 엔드포인트·재시도. 반환은 입력 순서 보존.
+
+        OpenAI 호환 응답의 data 는 순서 보장이 없어 각 항목의 index 로 재정렬한다.
+        """
+        if not texts:
+            return []
+
+        async def _do() -> httpx.Response:
+            resp = await self._http().post(f"{self.base_url}/embeddings", json={"model": self.model, "input": texts})
+            if resp.status_code in (502, 503, 504):
+                resp.raise_for_status()
+            return resp
+
+        resp = await retry(_do, base_delay=0.5, retryable=is_http_retryable)
+        resp.raise_for_status()
+        data = sorted(resp.json()["data"], key=lambda item: item["index"])
+        return [item["embedding"] for item in data]
+
     async def aclose(self) -> None:
         if self._client is not None:
             await self._client.aclose()

@@ -11,6 +11,7 @@ from fastmcp import FastMCP
 from fastmcp.server.auth.providers.jwt import JWTVerifier
 from fastmcp.server.providers.openapi import MCPType, RouteMap
 from routers.vector_search.vector_search_router import router as vector_search_router
+from routers.workspace.workspace_router import router as workspace_router
 from utils.common.few_shot import attach_tool_meta, attached_tool_names
 
 
@@ -24,6 +25,9 @@ async def lifespan(app: FastAPI):
         yield
     await app.container.embedding_client().aclose()
     await app.container.reranker_client().aclose()
+    workspace_engine = app.container.workspace_engine()
+    if workspace_engine is not None:
+        await workspace_engine.dispose()
     logger.info("DOC_SEARCH MCP service shutdown")
 
 
@@ -39,6 +43,7 @@ app = FastAPI(
 )
 app.container = Container()
 app.include_router(vector_search_router)
+app.include_router(workspace_router)
 
 # 이 서버의 도메인 자기소개 — tool description·스키마로 안 드러나는 운용·답변 지침만. 소비자가 모아 시스템 프롬프트에 주입.
 INSTRUCTIONS = """\
@@ -52,12 +57,18 @@ INSTRUCTIONS = """\
 - ⓘ 본 검색 결과는 정보 제공 목적이며 투자 조언이 아니다."""
 
 # from_fastapi: 라우트→MCP tool (operation_id=이름·docstring=설명·response_model=출력·instructions=자기소개). route_maps 로 전부 TOOL 고정 — GET 도 tool 이어야 call_tool 동작.
-# 인증 — MCP: JWTVerifier / REST(/vector-search/*): router.dependencies.
+# 단, 내부 인제스트(/doc-search/ingest)는 TOOL 매핑 앞에서 EXCLUDE — 쓰기 능력을 LLM tool 표면에 두면
+# 프롬프트 인젝션으로 근거 코퍼스가 오염될 수 있어 REST 내부(서비스 토큰) 전용으로 격리한다(design-160 AD-1).
+# route_maps 는 위→아래 첫 매치가 이긴다.
+# 인증 — MCP: JWTVerifier / REST(/doc-search/*): router.dependencies.
 mcp = FastMCP.from_fastapi(
     app=app,
     name="DOC_SEARCH MCP",
     instructions=INSTRUCTIONS,
-    route_maps=[RouteMap(mcp_type=MCPType.TOOL)],
+    route_maps=[
+        RouteMap(pattern=r"^/doc-search/ingest$", mcp_type=MCPType.EXCLUDE),
+        RouteMap(mcp_type=MCPType.TOOL),
+    ],
     mcp_component_fn=attach_tool_meta,
     auth=JWTVerifier(public_key=settings.JWT_SECRET, algorithm="HS256"),
 )
